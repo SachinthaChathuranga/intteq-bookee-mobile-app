@@ -15,6 +15,7 @@ interface Props {
   source?: string | null;
   name?: string | null;
   size?: AvatarSize;
+  shape?: 'circle' | 'square';
   status?: 'active' | 'paused' | 'offline' | 'busy';
   style?: StyleProp<ViewStyle>;
 }
@@ -33,10 +34,12 @@ const fontSizeMap: Record<AvatarSize, number> = {
   xl: 28,
 };
 
-export function Avatar({ source, name, size = 'md', status, style }: Props) {
+export function Avatar({ source, name, size = 'md', shape = 'circle', status, style }: Props) {
   const { colors } = useTheme();
   const dimension = sizeMap[size];
   const fontSize = fontSizeMap[size];
+  const borderRadius = shape === 'square' ? 14 : radius.full;
+
 
   const getInitials = (str?: string | null) => {
     if (!str) return '?';
@@ -60,11 +63,13 @@ export function Avatar({ source, name, size = 'md', status, style }: Props) {
           {
             width: dimension,
             height: dimension,
+            borderRadius,
             backgroundColor: colors.surface,
             borderColor: colors.border,
           },
         ]}
       >
+
         {source ? (
           <Image source={{ uri: source }} style={styles.image} resizeMode="cover" />
         ) : (

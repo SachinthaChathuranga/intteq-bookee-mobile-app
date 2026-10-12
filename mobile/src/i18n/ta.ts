@@ -78,7 +78,32 @@ export const ta: Translations = {
   'explore.servicesCount': '{count} சேவைகள்',
   'explore.fromPrice': '{price} முதல்',
   'home.featuredSalons': 'சிறப்பு சலூன்கள்',
+  'home.findSalonTitle': 'உங்களுக்கான சிறந்த சலூனைக் கண்டறியவும்',
+  'home.findSalonSubtitle': 'சிறந்த சேவைக்காக உங்கள் விருப்பமான பார்பரைத் தேர்ந்தெடுக்கவும்',
+  'home.availableBarbers': 'கிடைக்கும் பார்பர்கள்',
+  'home.barbersCount': '{count} பார்பர்கள்',
+
+  'walkin.stepProgress': 'படி {current} / {total}',
+  'walkin.stepBarber': 'பார்பர்',
+  'walkin.stepService': 'சேவை',
+  'walkin.stepSummary': 'சுருக்கம்',
+  'walkin.chooseAnyBarber': 'எந்த பார்பரையும் தேர்ந்தெடுக்கவும்',
+  'walkin.chooseSpecificBarber': 'அல்லது குறிப்பிட்ட பார்பரைத் தேர்ந்தெடுக்கவும்',
+  'walkin.chooseServices': 'சேவைகளைத் தேர்ந்தெடுக்கவும்',
+  'walkin.hairServices': 'முடி சேவைகள்',
+  'walkin.bookingSummary': 'பதிவு சுருக்கம்',
+  'walkin.selectedServicesFee': 'தேர்ந்தெடுக்கப்பட்ட சேவைக் கட்டணம்',
+  'walkin.bookingFee': 'வரிசை சேர்க்கைக் கட்டணம்',
+  'walkin.totalAmount': 'மொத்தத் தொகை',
+  'walkin.importantNote': 'முக்கிய குறிப்பு',
+  'walkin.importantNoteDesc': 'தயவுசெய்து உங்கள் நேரத்திற்கு 15 நிமிடங்களுக்கு முன் வரவும்.',
+  'walkin.confirmBooking': 'உறுதிசெய்து வரிசையில் சேரவும்',
+  'walkin.change': 'மாற்று',
+  'walkin.next': 'அடுத்து ›',
+  'walkin.availableToday': 'இன்று கிடைக்கிறது',
+
   'appointments.title': 'எனது முன்பதிவுகள்',
+
   'appointments.placeholder': 'உங்கள் வரவிருக்கும் மற்றும் கடந்தகால முன்பதிவுகள் — மைல்கல் 7 இல் வரும்',
 
   // Profile Screen

@@ -4,5 +4,5 @@ export const APP_SLUG = 'barberq';
 export const SUPPORT_CONTACT = 'support@example.com';
 
 // Not a secret. Use your computer's LAN IP when testing on a physical device.
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.8.106:4000';
-// export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
+// export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.8.106:4000';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';

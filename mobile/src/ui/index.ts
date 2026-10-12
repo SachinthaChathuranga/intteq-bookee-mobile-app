@@ -11,3 +11,7 @@ export * from './EmptyState';
 export * from './Skeleton';
 export * from './BottomSheet';
 export * from './Badge';
+export * from './RatingBadge';
+export * from './OptionCard';
+export * from './Stepper';
+

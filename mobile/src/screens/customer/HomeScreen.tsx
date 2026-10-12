@@ -1,13 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { fetchSalons } from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Card, EmptyState, Screen, SkeletonCard, radius, spacing } from '../../ui';
-import { formatCurrency } from '../../utils/format';
+import { palette } from '../../theme/palette';
+import {
+  Avatar,
+  Card,
+  EmptyState,
+  RatingBadge,
+  Screen,
+  SkeletonCard,
+  haptics,
+  radius,
+  spacing,
+} from '../../ui';
 
 interface Props {
   navigation: {
@@ -15,7 +26,6 @@ interface Props {
   };
 }
 
-// Curated high-res salon photo covers for aesthetic presentation
 const SALON_IMAGE_COVERS = [
   'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=800&q=80',
   'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80',
@@ -23,10 +33,17 @@ const SALON_IMAGE_COVERS = [
   'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=80',
 ];
 
+const MOCK_BARBERS = [
+  { id: 'b1', name: 'Nishantha Fernando', salon: 'Kasun’s Salon - Colombo', rating: 4.7, reviews: 50 },
+  { id: 'b2', name: 'Amal Perera', salon: 'Kasun’s Salon - Kandy', rating: 4.8, reviews: 42 },
+];
+
 export function HomeScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
+  const [favoriteSalons, setFavoriteSalons] = useState<Record<string, boolean>>({});
+  const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
 
   const salonsQuery = useQuery({
     queryKey: ['customer-salons'],
@@ -35,6 +52,13 @@ export function HomeScreen({ navigation }: Props) {
 
   const salons = salonsQuery.data?.salons ?? [];
 
+  const toggleFavorite = (id: string) => {
+    haptics.light();
+    setFavoriteSalons((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const currentSalon = salons[activeCarouselIndex] ?? salons[0];
+
   return (
     <Screen
       scrollable
@@ -42,55 +66,61 @@ export function HomeScreen({ navigation }: Props) {
       onRefresh={() => salonsQuery.refetch()}
       contentContainerStyle={styles.container}
     >
-      {/* Large Header Title & Greeting */}
-      <View style={styles.header}>
-        <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '600' }}>
-          {t('term.salon').toUpperCase()}
+      {/* 1. Top Bar Header: Profile Avatar + Bookee Logo + Greeting */}
+      <View style={styles.topBar}>
+        <Avatar name={user?.name} size="md" />
+        <View style={styles.topBarText}>
+          <View style={styles.logoRow}>
+            <AppText style={[styles.logoText, { color: colors.text }]}>Book</AppText>
+            <AppText style={[styles.logoAccent, { color: colors.primary }]}>ee</AppText>
+          </View>
+          <AppText variant="caption" style={{ color: colors.textMuted, fontSize: 13 }}>
+            {t('home.welcome', { name: user?.name ?? '' })}
+          </AppText>
+        </View>
+      </View>
+
+      {/* 2. Hero Headline (Centered, Friendly) */}
+      <View style={styles.heroSection}>
+        <AppText style={[styles.heroTitle, { color: colors.text }]}>
+          {t('home.findSalonTitle')}
         </AppText>
-        <AppText variant="title" style={styles.title}>
-          {t('home.welcome', { name: user?.name ?? '' })}
-        </AppText>
-        <AppText variant="caption" style={{ color: colors.textMuted }}>
-          {t('home.placeholder', { salon: t('term.salon') })}
+        <AppText style={[styles.heroSubtitle, { color: colors.textMuted }]}>
+          {t('home.findSalonSubtitle')}
         </AppText>
       </View>
 
-      {/* Quick Search Action Bar */}
+      {/* 3. Pill Search Input with Right Magnifying Glass */}
       <TouchableOpacity
-        activeOpacity={0.75}
-        onPress={() => navigation.navigate('Explore')}
+        activeOpacity={0.8}
+        onPress={() => {
+          haptics.light();
+          navigation.navigate('Explore');
+        }}
         style={[
-          styles.searchBar,
+          styles.pillSearchBar,
           {
             backgroundColor: colors.surface,
             borderColor: colors.border,
           },
         ]}
       >
-        <Ionicons name="search" size={20} color={colors.textMuted} />
-        <AppText variant="body" style={{ color: colors.textMuted, flex: 1, marginLeft: 8 }}>
+        <AppText variant="body" style={{ color: colors.textMuted, flex: 1 }}>
           {t('explore.searchPlaceholder')}
         </AppText>
+        <Ionicons name="search" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
-      {/* Section Header */}
-      <View style={styles.sectionHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <AppText variant="heading" style={{ fontSize: 20 }}>
-            {t('home.featuredSalons')}
-          </AppText>
-          {salons.length > 0 ? (
-            <Badge label={String(salons.length)} variant="primary" />
-          ) : null}
-        </View>
+      {/* 4. Section Label: FEATURED SALONS */}
+      <View style={styles.sectionHeaderRow}>
+        <AppText style={[styles.sectionTrackedTitle, { color: colors.textMuted }]}>
+          {t('home.featuredSalons').toUpperCase()}
+        </AppText>
       </View>
 
-      {/* Content Feed */}
+      {/* 5. Featured Salon Card with Overlays */}
       {salonsQuery.isLoading ? (
-        <View style={{ gap: spacing.lg }}>
-          <SkeletonCard height={240} />
-          <SkeletonCard height={240} />
-        </View>
+        <SkeletonCard height={240} />
       ) : salons.length === 0 ? (
         <EmptyState
           icon="cut-outline"
@@ -99,77 +129,119 @@ export function HomeScreen({ navigation }: Props) {
           actionLabel={t('nav.explore')}
           onAction={() => navigation.navigate('Explore')}
         />
-      ) : (
-        salons.map((salon, index) => {
-          const minPrice =
-            salon.services.length > 0
-              ? Math.min(...salon.services.map((s) => s.price))
-              : null;
-          const coverImage = SALON_IMAGE_COVERS[index % SALON_IMAGE_COVERS.length];
-
-          return (
-            <Card
-              key={salon.id}
-              coverImage={coverImage}
-              coverHeight={160}
-              onPress={() => navigation.navigate('Explore')}
-              style={styles.salonCard}
-            >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText variant="heading" style={{ fontSize: 18 }}>
-                    {salon.business_name}
-                  </AppText>
-                  <View style={styles.locationRow}>
-                    <Ionicons name="location-sharp" size={14} color={colors.primary} />
-                    <AppText
-                      variant="caption"
-                      style={{ color: colors.primary, fontWeight: '700' }}
-                    >
-                      {salon.branch_name}
-                    </AppText>
-                  </View>
-                </View>
-
-                {salon.active_barbers_count > 0 ? (
-                  <Badge
-                    label={`${salon.active_barbers_count} on shift`}
-                    variant="success"
-                  />
-                ) : null}
-              </View>
-
-              <AppText variant="caption" style={{ color: colors.textMuted }}>
-                {salon.address}
-              </AppText>
-
-              {/* Bottom Info Bar */}
-              <View
-                style={[
-                  styles.cardFooter,
-                  { borderTopColor: colors.border, borderTopWidth: 1 },
-                ]}
+      ) : currentSalon ? (
+        <View style={{ gap: spacing.sm }}>
+          <Card
+            coverImage={SALON_IMAGE_COVERS[activeCarouselIndex % SALON_IMAGE_COVERS.length]}
+            coverHeight={170}
+            floatingBadge={<RatingBadge rating="4.7" />}
+            floatingAction={
+              <Pressable
+                onPress={() => toggleFavorite(currentSalon.id)}
+                style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
               >
-                <View style={styles.serviceMeta}>
-                  <Ionicons name="cut-outline" size={16} color={colors.textMuted} />
-                  <AppText variant="caption" style={{ fontWeight: '600' }}>
-                    {t('explore.servicesCount', { count: salon.services.length })}
+                <Ionicons
+                  name={favoriteSalons[currentSalon.id] ? 'heart' : 'heart-outline'}
+                  size={18}
+                  color={favoriteSalons[currentSalon.id] ? colors.primary : colors.textMuted}
+                />
+              </Pressable>
+            }
+            onPress={() => {
+              haptics.light();
+              navigation.navigate('Explore');
+            }}
+            style={styles.featuredCard}
+          >
+            <AppText style={[styles.salonCardTitle, { color: colors.primary }]}>
+              {currentSalon.business_name}
+            </AppText>
+
+            <View style={styles.salonInfoRow}>
+              <Ionicons name="location-sharp" size={15} color={colors.text} />
+              <AppText variant="body" style={{ color: colors.text, fontSize: 14 }}>
+                {currentSalon.branch_name}, {currentSalon.address}
+              </AppText>
+            </View>
+
+            <View style={styles.salonInfoRow}>
+              <Ionicons name="people" size={15} color={colors.text} />
+              <AppText variant="body" style={{ color: colors.text, fontSize: 14 }}>
+                {t('home.barbersCount', { count: currentSalon.active_barbers_count || 3 })}
+              </AppText>
+            </View>
+          </Card>
+
+          {/* Carousel Pagination Dots */}
+          {salons.length > 1 ? (
+            <View style={styles.dotsRow}>
+              {salons.slice(0, 4).map((_, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => {
+                    haptics.light();
+                    setActiveCarouselIndex(i);
+                  }}
+                  style={[
+                    styles.dot,
+                    {
+                      backgroundColor: i === activeCarouselIndex ? colors.primary : colors.border,
+                      width: i === activeCarouselIndex ? 18 : 8,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* 6. Section Label: AVAILABLE BARBERS */}
+      <View style={styles.sectionHeaderRow}>
+        <AppText style={[styles.sectionTrackedTitle, { color: colors.textMuted }]}>
+          {t('home.availableBarbers').toUpperCase()}
+        </AppText>
+      </View>
+
+      {/* 7. Barber Horizontal Cards */}
+      <View style={{ gap: spacing.md }}>
+        {MOCK_BARBERS.map((barber) => (
+          <Card
+            key={barber.id}
+            onPress={() => {
+              haptics.light();
+              navigation.navigate('Explore');
+            }}
+            style={styles.barberRowCard}
+          >
+            <View style={styles.barberContentRow}>
+              {/* Square rounded avatar with green status dot */}
+              <Avatar name={barber.name} shape="square" size="lg" status="active" />
+
+              <View style={styles.barberDetails}>
+                <AppText style={[styles.barberName, { color: colors.text }]}>
+                  {barber.name}
+                </AppText>
+                <View style={styles.barberSalonRow}>
+                  <Ionicons name="cut-outline" size={14} color={colors.textMuted} />
+                  <AppText variant="caption" style={{ color: colors.textMuted }}>
+                    {barber.salon}
                   </AppText>
                 </View>
-
-                {minPrice !== null ? (
-                  <AppText
-                    variant="caption"
-                    style={{ color: colors.primary, fontWeight: '800', fontSize: 13 }}
-                  >
-                    {t('explore.fromPrice', { price: formatCurrency(minPrice) })}
-                  </AppText>
-                ) : null}
               </View>
-            </Card>
-          );
-        })
-      )}
+
+              {/* Rating + Favorite + Arrow Chevron */}
+              <View style={styles.barberTrailing}>
+                <RatingBadge rating={barber.rating} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <Ionicons name="heart-outline" size={18} color={colors.textMuted} />
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </View>
+              </View>
+            </View>
+          </Card>
+        ))}
+      </View>
     </Screen>
   );
 }
@@ -179,53 +251,128 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.lg,
   },
-  header: {
-    gap: 4,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     marginTop: spacing.xs,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
+  topBarText: {
+    gap: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  logoText: {
+    fontSize: 22,
+    fontWeight: '900',
     letterSpacing: -0.5,
   },
-  searchBar: {
+  logoAccent: {
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  heroSection: {
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: -0.4,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 280,
+  },
+  pillSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.card,
+    borderRadius: radius.pill,
     borderWidth: 1,
+    shadowColor: palette.neutral[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  sectionHeaderRow: {
     marginTop: spacing.xs,
   },
-  salonCard: {
-    gap: spacing.sm,
+  sectionTrackedTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
-  cardHeader: {
+  featuredCard: {
+    gap: spacing.xs,
+  },
+  floatingHeartBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: palette.neutral[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  salonCardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  salonInfoRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
   },
-  locationRow: {
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+  },
+  barberRowCard: {
+    padding: spacing.md,
+  },
+  barberContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  barberDetails: {
+    flex: 1,
+    gap: 4,
+  },
+  barberName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  barberSalonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  serviceMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  barberTrailing: {
+    alignItems: 'flex-end',
+    gap: 4,
   },
 });
+

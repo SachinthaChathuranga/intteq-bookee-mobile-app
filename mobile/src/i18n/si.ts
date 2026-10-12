@@ -78,7 +78,32 @@ export const si: Translations = {
   'explore.servicesCount': 'සේවා {count}ක්',
   'explore.fromPrice': '{price} සිට',
   'home.featuredSalons': 'ප්‍රමුඛ සැලූන්',
+  'home.findSalonTitle': 'ඔබට ගැළපෙන සැලූනය සොයාගන්න',
+  'home.findSalonSubtitle': 'විශිෂ්ට සේවාවක් සඳහා ඔබේ ප්‍රියතම බාබර් තෝරාගන්න',
+  'home.availableBarbers': 'පවතින බාබර්වරු',
+  'home.barbersCount': 'බාබර්වරු {count}ක්',
+
+  'walkin.stepProgress': 'පියවර {current} / {total}',
+  'walkin.stepBarber': 'බාබර්',
+  'walkin.stepService': 'සේවාව',
+  'walkin.stepSummary': 'සාරාංශය',
+  'walkin.chooseAnyBarber': 'ඕනෑම බාබර්වරයෙකු තෝරන්න',
+  'walkin.chooseSpecificBarber': 'හෝ නිශ්චිත බාබර්වරයෙකු තෝරන්න',
+  'walkin.chooseServices': 'සේවාවන් තෝරන්න',
+  'walkin.hairServices': 'කොණ්ඩා සත්කාර සේවා',
+  'walkin.bookingSummary': 'වෙන්කිරීම් සාරාංශය',
+  'walkin.selectedServicesFee': 'තෝරාගත් සේවා ගාස්තුව',
+  'walkin.bookingFee': 'පෝලිම් ඇතුළත් කිරීමේ ගාස්තුව',
+  'walkin.totalAmount': 'මුළු මුදල',
+  'walkin.importantNote': 'වැදගත් සටහන',
+  'walkin.importantNoteDesc': 'කරුණාකර නියමිත වේලාවට විනාඩි 15කට පෙර පැමිණෙන්න.',
+  'walkin.confirmBooking': 'තහවුරු කර පෝලිමට එක්වන්න',
+  'walkin.change': 'වෙනස් කරන්න',
+  'walkin.next': 'ඊළඟ ›',
+  'walkin.availableToday': 'අද පවතී',
+
   'appointments.title': 'මගේ වෙන්කිරීම්',
+
   'appointments.placeholder': 'ඔබේ ඉදිරි සහ පසුගිය වෙන්කිරීම් — 7 වන පියවරෙන් පැමිණේ',
 
   // Profile Screen

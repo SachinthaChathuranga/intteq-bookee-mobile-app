@@ -18,6 +18,7 @@ interface Props extends TextInputProps {
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   clearable?: boolean;
+  pill?: boolean;
   onClear?: () => void;
   containerStyle?: StyleProp<ViewStyle>;
 }
@@ -28,6 +29,7 @@ export function Input({
   leftIcon,
   rightIcon,
   clearable,
+  pill = false,
   onClear,
   containerStyle,
   style,
@@ -54,9 +56,12 @@ export function Input({
           {
             backgroundColor: colors.surface,
             borderColor: getBorderColor(),
+            borderRadius: pill ? radius.pill : radius.input,
+            paddingHorizontal: pill ? spacing.lg : spacing.md,
           },
         ]}
       >
+
         {leftIcon ? <View style={styles.leftIcon}>{leftIcon}</View> : null}
         <TextInput
           {...rest}

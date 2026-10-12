@@ -1,12 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { fetchSalons } from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Card, Chip, EmptyState, Input, Screen, SkeletonCard, spacing } from '../../ui';
+import { palette } from '../../theme/palette';
+import {
+  Badge,
+  Card,
+  Chip,
+  EmptyState,
+  Input,
+  RatingBadge,
+  Screen,
+  SkeletonCard,
+  haptics,
+  radius,
+  spacing,
+} from '../../ui';
 import { formatCurrency } from '../../utils/format';
 
 const SALON_IMAGE_COVERS = [
@@ -22,6 +35,7 @@ export function ExploreScreen() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'haircut' | 'beard' | 'kids'>('all');
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
   const filterKeywords: Record<'all' | 'haircut' | 'beard' | 'kids', string> = {
     all: '',
@@ -38,6 +52,11 @@ export function ExploreScreen() {
   });
 
   const salons = salonsQuery.data?.salons ?? [];
+
+  const toggleFavorite = (id: string) => {
+    haptics.light();
+    setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <Screen
@@ -56,14 +75,15 @@ export function ExploreScreen() {
         </AppText>
       </View>
 
-      {/* Modern Search Input */}
+      {/* Pill Search Input with Right Magnifying Glass */}
       <Input
         placeholder={t('explore.searchPlaceholder')}
         value={searchTerm}
         onChangeText={setSearchTerm}
         onClear={() => setSearchTerm('')}
-        leftIcon={<Ionicons name="search" size={20} color={colors.textMuted} />}
+        rightIcon={<Ionicons name="search" size={20} color={colors.textMuted} />}
         clearable
+        pill
       />
 
       {/* Filter Chips Horizontal Row */}
@@ -133,7 +153,20 @@ export function ExploreScreen() {
             <Card
               key={salon.id}
               coverImage={coverImage}
-              coverHeight={150}
+              coverHeight={160}
+              floatingBadge={<RatingBadge rating="4.7" />}
+              floatingAction={
+                <Pressable
+                  onPress={() => toggleFavorite(salon.id)}
+                  style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
+                >
+                  <Ionicons
+                    name={favorites[salon.id] ? 'heart' : 'heart-outline'}
+                    size={18}
+                    color={favorites[salon.id] ? colors.primary : colors.textMuted}
+                  />
+                </Pressable>
+              }
               style={styles.salonCard}
             >
               <View style={styles.cardHeader}>
@@ -242,5 +275,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  floatingHeartBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: palette.neutral[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });

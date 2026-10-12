@@ -77,7 +77,32 @@ export const en = {
   'explore.servicesCount': '{count} services',
   'explore.fromPrice': 'From {price}',
   'home.featuredSalons': 'Featured Salons',
+  'home.findSalonTitle': 'Find Your Perfect Salon',
+  'home.findSalonSubtitle': 'Book your favorite barber for the perfect grooming experience',
+  'home.availableBarbers': 'Available Barbers',
+  'home.barbersCount': '{count} barbers',
+
+  'walkin.stepProgress': 'Step {current} of {total}',
+  'walkin.stepBarber': 'Barber',
+  'walkin.stepService': 'Service',
+  'walkin.stepSummary': 'Summary',
+  'walkin.chooseAnyBarber': 'Choose Any Barber',
+  'walkin.chooseSpecificBarber': 'Or Choose a Specific Barber',
+  'walkin.chooseServices': 'Choose Services',
+  'walkin.hairServices': 'Hair Services',
+  'walkin.bookingSummary': 'Booking Summary',
+  'walkin.selectedServicesFee': 'Selected Services',
+  'walkin.bookingFee': 'Queue Entry Fee',
+  'walkin.totalAmount': 'Total Amount',
+  'walkin.importantNote': 'Important Note',
+  'walkin.importantNoteDesc': 'Please arrive 15 minutes before your estimated time.',
+  'walkin.confirmBooking': 'Confirm & Join Queue',
+  'walkin.change': 'Change',
+  'walkin.next': 'Next ›',
+  'walkin.availableToday': 'Available Today',
+
   'appointments.title': 'My Appointments',
+
   'appointments.placeholder': 'Your upcoming and past bookings — coming in Milestone 7',
 
   // Profile Screen

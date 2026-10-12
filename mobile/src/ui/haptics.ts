@@ -19,9 +19,16 @@ export function successNotification() {
   }
 }
 
+export function selectionFeedback() {
+  if (Platform.OS !== 'web') {
+    Haptics.selectionAsync().catch(() => {});
+  }
+}
+
 export const haptics = {
   light: lightImpact,
   medium: mediumImpact,
   success: successNotification,
+  selection: selectionFeedback,
 };
 

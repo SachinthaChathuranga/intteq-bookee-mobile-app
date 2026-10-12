@@ -8,6 +8,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { palette } from '../theme/palette';
 import { lightImpact } from './haptics';
 import { radius, spacing } from './tokens';
 
@@ -18,6 +19,9 @@ interface Props {
   noPadding?: boolean;
   coverImage?: string;
   coverHeight?: number;
+  floatingBadge?: ReactNode;
+  floatingAction?: ReactNode;
+  highlighted?: boolean;
 }
 
 export function Card({
@@ -26,7 +30,10 @@ export function Card({
   style,
   noPadding = false,
   coverImage,
-  coverHeight = 150,
+  coverHeight = 160,
+  floatingBadge,
+  floatingAction,
+  highlighted = false,
 }: Props) {
   const { colors } = useTheme();
 
@@ -40,15 +47,22 @@ export function Card({
   const content = (
     <>
       {coverImage ? (
-        <Image
-          source={{ uri: coverImage }}
-          style={[styles.cover, { height: coverHeight }]}
-          resizeMode="cover"
-        />
+        <View style={styles.coverWrapper}>
+          <Image
+            source={{ uri: coverImage }}
+            style={[styles.cover, { height: coverHeight }]}
+            resizeMode="cover"
+          />
+          {floatingBadge ? <View style={styles.floatingBadge}>{floatingBadge}</View> : null}
+          {floatingAction ? <View style={styles.floatingAction}>{floatingAction}</View> : null}
+        </View>
       ) : null}
       <View style={!noPadding ? styles.padded : undefined}>{children}</View>
     </>
   );
+
+  const cardBg = highlighted ? colors.primaryLight : colors.surface;
+  const cardBorder = highlighted ? colors.primary : colors.border;
 
   if (onPress) {
     return (
@@ -58,9 +72,10 @@ export function Card({
         style={({ pressed }) => [
           styles.base,
           {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            opacity: pressed ? 0.85 : 1,
+            backgroundColor: cardBg,
+            borderColor: cardBorder,
+            borderWidth: highlighted ? 1.5 : 1,
+            opacity: pressed ? 0.88 : 1,
             transform: [{ scale: pressed ? 0.99 : 1 }],
           },
           style,
@@ -76,8 +91,9 @@ export function Card({
       style={[
         styles.base,
         {
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
+          backgroundColor: cardBg,
+          borderColor: cardBorder,
+          borderWidth: highlighted ? 1.5 : 1,
         },
         style,
       ]}
@@ -89,16 +105,38 @@ export function Card({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radius.card,
+    borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: palette.neutral[900],
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  coverWrapper: {
+    width: '100%',
+    position: 'relative',
   },
   cover: {
     width: '100%',
+  },
+  floatingBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 2,
+  },
+  floatingAction: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 2,
   },
   padded: {
     padding: spacing.lg,
     gap: spacing.sm,
   },
 });
+
 
