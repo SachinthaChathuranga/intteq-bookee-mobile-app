@@ -17,6 +17,7 @@ export type OwnerStackParamList = {
 
 export type BarberStackParamList = {
   BarberHome: undefined;
+  EndShift: { branchId: string; shiftId: string };
 };
 
 export type ReceptionistStackParamList = {

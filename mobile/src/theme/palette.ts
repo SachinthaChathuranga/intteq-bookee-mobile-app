@@ -29,4 +29,5 @@ export const palette = {
   success: '#16A34A',
   warning: '#D97706',
   danger: '#DC2626',
+  overlay: 'rgba(0, 0, 0, 0.5)',
 };

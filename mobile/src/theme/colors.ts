@@ -11,6 +11,7 @@ export interface ColorTokens {
   success: string;
   warning: string;
   danger: string;
+  overlay: string;
 }
 
 export const light: ColorTokens = {
@@ -24,6 +25,7 @@ export const light: ColorTokens = {
   success: palette.success,
   warning: palette.warning,
   danger: palette.danger,
+  overlay: palette.overlay,
 };
 
 export const dark: ColorTokens = {
@@ -37,6 +39,7 @@ export const dark: ColorTokens = {
   success: palette.success,
   warning: palette.warning,
   danger: palette.danger,
+  overlay: palette.overlay,
 };
 
 export const colors = { light, dark };
