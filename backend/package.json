@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "migrate": "node-pg-migrate -m migrations --migration-file-language sql",
+    "seed": "tsx src/db/seed.ts",
     "test": "vitest run"
   },
   "dependencies": {

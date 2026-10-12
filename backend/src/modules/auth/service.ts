@@ -15,22 +15,39 @@ const hmac = (value: string) =>
   crypto.createHmac('sha256', config.OTP_HMAC_SECRET).update(value).digest('hex');
 const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
 
+export const DEV_TEST_PHONES = new Set([
+  '94770000100', // Customer: Nimal
+  '94770000200', // Owner: Kasun
+  '94770000300', // Barber: Amal
+  '94770000400', // Receptionist: Saman
+  '94770000500', // Super Admin
+]);
+export const DEV_FIXED_OTP = '123456';
+
 export async function requestOtp(phone: string): Promise<void> {
-  const { rows } = await pool.query<{ created_at: Date }>(
-    'SELECT created_at FROM otp_codes WHERE phone = $1 ORDER BY created_at DESC LIMIT 1',
-    [phone],
-  );
-  const last = rows[0];
-  if (last && Date.now() - last.created_at.getTime() < OTP_RESEND_COOLDOWN_MS) {
-    throw new HttpError(429, 'OTP_COOLDOWN');
+  const isDevTestNumber = config.NODE_ENV === 'development' && DEV_TEST_PHONES.has(phone);
+
+  if (!isDevTestNumber) {
+    const { rows } = await pool.query<{ created_at: Date }>(
+      'SELECT created_at FROM otp_codes WHERE phone = $1 ORDER BY created_at DESC LIMIT 1',
+      [phone],
+    );
+    const last = rows[0];
+    if (last && Date.now() - last.created_at.getTime() < OTP_RESEND_COOLDOWN_MS) {
+      throw new HttpError(429, 'OTP_COOLDOWN');
+    }
   }
-  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+
+  const code = isDevTestNumber ? DEV_FIXED_OTP : crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
   await pool.query('INSERT INTO otp_codes (phone, code_hash, expires_at) VALUES ($1, $2, $3)', [
     phone,
     hmac(`${phone}:${code}`),
     new Date(Date.now() + OTP_TTL_MS),
   ]);
-  await smsService.sendSms(phone, `Your ${config.APP_NAME} code is ${code}. It expires in 5 minutes.`);
+
+  if (!isDevTestNumber) {
+    await smsService.sendSms(phone, `Your ${config.APP_NAME} code is ${code}. It expires in 5 minutes.`);
+  }
 }
 
 export interface Session {
@@ -62,29 +79,41 @@ async function issueRefreshToken(
 
 export async function verifyOtp(phone: string, code: string): Promise<Session> {
   return withTransaction(async (client) => {
-    const { rows } = await client.query<{
-      id: string;
-      code_hash: string;
-      attempts: number;
-    }>(
-      `SELECT id, code_hash, attempts FROM otp_codes
-       WHERE phone = $1 AND consumed_at IS NULL AND expires_at > now()
-       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
-      [phone],
-    );
-    const otp = rows[0];
-    if (!otp || otp.attempts >= OTP_MAX_ATTEMPTS) throw new HttpError(400, 'OTP_INVALID');
+    const isDevTestNumber = config.NODE_ENV === 'development' && DEV_TEST_PHONES.has(phone);
 
-    const expected = Buffer.from(otp.code_hash);
-    const actual = Buffer.from(hmac(`${phone}:${code}`));
-    const ok = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
-    if (!ok) {
-      await client.query('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1', [otp.id]);
-      await client.query('COMMIT');
-      await client.query('BEGIN');
-      throw new HttpError(400, 'OTP_INVALID');
+    if (isDevTestNumber) {
+      if (code !== DEV_FIXED_OTP) {
+        throw new HttpError(400, 'OTP_INVALID');
+      }
+      await client.query(
+        'UPDATE otp_codes SET consumed_at = now() WHERE phone = $1 AND consumed_at IS NULL',
+        [phone],
+      );
+    } else {
+      const { rows } = await client.query<{
+        id: string;
+        code_hash: string;
+        attempts: number;
+      }>(
+        `SELECT id, code_hash, attempts FROM otp_codes
+         WHERE phone = $1 AND consumed_at IS NULL AND expires_at > now()
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+        [phone],
+      );
+      const otp = rows[0];
+      if (!otp || otp.attempts >= OTP_MAX_ATTEMPTS) throw new HttpError(400, 'OTP_INVALID');
+
+      const expected = Buffer.from(otp.code_hash);
+      const actual = Buffer.from(hmac(`${phone}:${code}`));
+      const ok = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+      if (!ok) {
+        await client.query('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1', [otp.id]);
+        await client.query('COMMIT');
+        await client.query('BEGIN');
+        throw new HttpError(400, 'OTP_INVALID');
+      }
+      await client.query('UPDATE otp_codes SET consumed_at = now() WHERE id = $1', [otp.id]);
     }
-    await client.query('UPDATE otp_codes SET consumed_at = now() WHERE id = $1', [otp.id]);
 
     // Claim an existing walk-in profile or create a new user (SPEC §8).
     const existing = await client.query<UserRow>('SELECT * FROM users WHERE phone = $1', [phone]);
