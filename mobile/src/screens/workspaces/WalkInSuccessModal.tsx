@@ -1,6 +1,6 @@
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { AppText } from '../../components/AppText';
-import { Button } from '../../components/Button';
+import { BottomSheet, Button } from '../../ui';
 import { useT } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -23,71 +23,60 @@ export function WalkInSuccessModal({
   const { colors } = useTheme();
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
-        <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <AppText variant="title" style={{ textAlign: 'center', marginBottom: 8 }}>
-            {t('walkin.tokenGenerated')}
+    <BottomSheet visible={visible} onClose={onDismiss} title={t('walkin.tokenGenerated')}>
+      <View style={styles.sheetContent}>
+        <View style={[styles.tokenBadge, { backgroundColor: colors.background, borderColor: colors.primary }]}>
+          <AppText style={[styles.tokenText, { color: colors.primary }]}>{token}</AppText>
+        </View>
+
+        {customerName ? (
+          <AppText variant="body" style={{ textAlign: 'center', fontWeight: '700', fontSize: 16 }}>
+            {customerName}
           </AppText>
+        ) : null}
 
-          <View style={[styles.tokenBadge, { backgroundColor: colors.background, borderColor: colors.primary }]}>
-            <AppText style={[styles.tokenText, { color: colors.primary }]}>{token}</AppText>
-          </View>
+        <View style={[styles.waitInfo, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <AppText variant="caption" style={{ color: colors.textMuted }}>
+            {t('walkin.estWait', { time: `${estimatedWaitMinutes} mins` })}
+          </AppText>
+        </View>
 
-          {customerName ? (
-            <AppText variant="body" style={{ textAlign: 'center', fontWeight: '600', marginTop: 12 }}>
-              {customerName}
-            </AppText>
-          ) : null}
-
-          <View style={[styles.waitInfo, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <AppText variant="caption" style={{ color: colors.textMuted }}>
-              {t('walkin.estWait', { time: `${estimatedWaitMinutes} mins` })}
-            </AppText>
-          </View>
-
-          <View style={{ marginTop: 20 }}>
-            <Button variant="primary" label={t('common.done')} onPress={onDismiss} />
-          </View>
+        <View style={styles.buttonWrapper}>
+          <Button variant="primary" label={t('common.done')} onPress={onDismiss} />
         </View>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
+  sheetContent: {
     alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 24,
+    gap: 12,
+    paddingBottom: 16,
   },
   tokenBadge: {
-    alignSelf: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 20,
     borderWidth: 2,
-    marginVertical: 12,
+    marginVertical: 8,
   },
   tokenText: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '800',
     letterSpacing: 2,
   },
   waitInfo: {
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
-    marginTop: 8,
+  },
+  buttonWrapper: {
+    width: '100%',
+    marginTop: 12,
   },
 });
+

@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { CompleteServiceInput, QueueEntry } from '../../api/barber';
 import { AppText } from '../../components/AppText';
-import { Button } from '../../components/Button';
-import { TextField } from '../../components/TextField';
+import { BottomSheet, Button, Input } from '../../ui';
 import { useT } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { formatCurrency } from '../../utils/format';
 
 interface Props {
   visible: boolean;
@@ -54,108 +52,99 @@ export function CompleteServiceModal({ visible, entry, onClose, onSubmit, loadin
     });
   };
 
-  if (!visible || !entry) return null;
+  if (!entry) return null;
 
   const customerName = entry.walk_in_name || entry.customer_name || entry.token_number || 'Customer';
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <AppText variant="title" style={{ fontSize: 20 }}>
-            {t('payment.title')}
+    <BottomSheet visible={visible} onClose={onClose} title={t('payment.title')}>
+      <View style={styles.sheetContent}>
+        <AppText variant="body" style={{ fontWeight: '700', fontSize: 16 }}>
+          {customerName}
+        </AppText>
+
+        <Input
+          label={t('payment.amount')}
+          keyboardType="numeric"
+          value={amount}
+          onChangeText={(txt) => {
+            setAmount(txt);
+            setError(null);
+          }}
+        />
+
+        <View style={styles.section}>
+          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '600' }}>
+            {t('payment.method')}
           </AppText>
-          <AppText variant="body" style={{ fontWeight: '600' }}>
-            {customerName}
-          </AppText>
+          <View style={styles.methodRow}>
+            {(['CASH', 'CARD', 'TRANSFER'] as const).map((method) => {
+              const isSelected = paymentMethod === method;
+              const label =
+                method === 'CASH'
+                  ? t('payment.cash')
+                  : method === 'CARD'
+                  ? t('payment.card')
+                  : t('payment.transfer');
 
-          <TextField
-            label={t('payment.amount')}
-            keyboardType="numeric"
-            value={amount}
-            onChangeText={(txt) => {
-              setAmount(txt);
-              setError(null);
-            }}
-          />
-
-          <View style={styles.section}>
-            <AppText variant="caption">{t('payment.method')}</AppText>
-            <View style={styles.methodRow}>
-              {(['CASH', 'CARD', 'TRANSFER'] as const).map((method) => {
-                const isSelected = paymentMethod === method;
-                const label =
-                  method === 'CASH'
-                    ? t('payment.cash')
-                    : method === 'CARD'
-                    ? t('payment.card')
-                    : t('payment.transfer');
-
-                return (
-                  <TouchableOpacity
-                    key={method}
-                    onPress={() => setPaymentMethod(method)}
-                    style={[
-                      styles.methodBtn,
-                      {
-                        backgroundColor: isSelected ? colors.primary : colors.background,
-                        borderColor: colors.border,
-                      },
-                    ]}
+              return (
+                <TouchableOpacity
+                  key={method}
+                  onPress={() => setPaymentMethod(method)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.methodBtn,
+                    {
+                      backgroundColor: isSelected ? colors.primary : colors.background,
+                      borderColor: isSelected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    style={{
+                      color: isSelected ? colors.onPrimary : colors.text,
+                      fontWeight: '700',
+                    }}
                   >
-                    <AppText
-                      variant="caption"
-                      style={{
-                        color: isSelected ? colors.onPrimary : colors.text,
-                        fontWeight: '700',
-                      }}
-                    >
-                      {label}
-                    </AppText>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                    {label}
+                  </AppText>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        </View>
 
-          <TextField
-            label={t('payment.tip')}
-            placeholder="0"
-            keyboardType="numeric"
-            value={tip}
-            onChangeText={setTip}
-          />
+        <Input
+          label={t('payment.tip')}
+          placeholder="0"
+          keyboardType="numeric"
+          value={tip}
+          onChangeText={setTip}
+        />
 
-          {error ? <AppText variant="error">{error}</AppText> : null}
+        {error ? <AppText variant="error">{error}</AppText> : null}
 
-          <View style={styles.buttonRow}>
-            <View style={{ flex: 1 }}>
-              <Button variant="secondary" label={t('common.cancel')} onPress={onClose} disabled={loading} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Button label={t('payment.submit')} onPress={handleSubmit} loading={loading} />
-            </View>
+        <View style={styles.buttonRow}>
+          <View style={{ flex: 1 }}>
+            <Button variant="secondary" label={t('common.cancel')} onPress={onClose} disabled={loading} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button variant="primary" label={t('payment.submit')} onPress={handleSubmit} loading={loading} />
           </View>
         </View>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
+  sheetContent: {
     gap: 16,
+    paddingBottom: 8,
   },
   section: {
-    gap: 6,
+    gap: 8,
   },
   methodRow: {
     flexDirection: 'row',
@@ -163,9 +152,10 @@ const styles = StyleSheet.create({
   },
   methodBtn: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -175,3 +165,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
+

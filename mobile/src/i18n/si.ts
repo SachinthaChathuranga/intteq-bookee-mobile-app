@@ -54,6 +54,20 @@ export const si: Translations = {
   'nav.explore': 'සොයන්න',
   'nav.appointments': 'වෙන්කිරීම්',
   'nav.profile': 'පැතිකඩ',
+  'nav.queue': 'පෝලිම',
+  'nav.walkin': 'වෝක්-ඉන්',
+  'nav.shift': 'ශිෆ්ට්',
+  'nav.floor': 'සජීවී තත්ත්වය',
+  'nav.overview': 'දළ විශ්ලේෂණය',
+  'nav.branches': 'ශාඛා',
+  'nav.services': 'සේවා',
+  'nav.barbers': 'බාබර්වරු',
+  'nav.exitWorkspace': 'පාරිභෝගික ඇප්',
+
+  'explore.filterAll': 'සියල්ල',
+  'explore.filterHaircut': 'කොණ්ඩ කැපීම',
+  'explore.filterBeard': 'රැවුල කැපීම',
+  'explore.filterKids': 'ළමා',
 
   // Explore & Appointments
   'explore.title': 'සැලූන් සොයන්න',

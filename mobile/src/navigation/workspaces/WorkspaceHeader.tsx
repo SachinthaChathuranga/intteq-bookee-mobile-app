@@ -16,11 +16,8 @@ export function WorkspaceHeader({ title, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
-  const clearWorkspace = useWorkspaceStore((s) => s.clearWorkspace);
 
   const businessName = activeWorkspace?.business_name ?? '';
-  const handleBack = onBack ?? clearWorkspace;
-  const backLabel = onBack ? `← ${t('common.back')}` : `← ${t('workspace.backToCustomer')}`;
 
   return (
     <View
@@ -34,18 +31,28 @@ export function WorkspaceHeader({ title, onBack }: Props) {
       ]}
     >
       <View style={styles.topRow}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleBack}
-          style={({ pressed }) => [
-            styles.backButton,
-            { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <AppText style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>
-            {backLabel}
-          </AppText>
-        </Pressable>
+        {onBack ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onBack}
+            style={({ pressed }) => [
+              styles.backButton,
+              { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <AppText style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
+              {`← ${t('common.back')}`}
+            </AppText>
+          </Pressable>
+        ) : (
+          <View style={{ flex: 1 }}>
+            {businessName ? (
+              <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
+                {businessName}
+              </AppText>
+            ) : null}
+          </View>
+        )}
 
         {activeWorkspace ? (
           <Badge
@@ -62,17 +69,13 @@ export function WorkspaceHeader({ title, onBack }: Props) {
       </View>
 
       <View style={styles.titleRow}>
-        <AppText variant="title" style={{ fontSize: 24, lineHeight: 32 }}>
+        <AppText variant="title" style={{ fontSize: 26, lineHeight: 32, fontWeight: '800' }}>
           {title}
         </AppText>
-        {businessName ? (
-          <AppText variant="caption" style={{ color: colors.primary, fontWeight: '600' }}>
-            {businessName}
-          </AppText>
-        ) : null}
       </View>
     </View>
   );
+
 }
 
 const styles = StyleSheet.create({

@@ -1,25 +1,33 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { fetchBranches } from '../../api/owner';
 import { AppText } from '../../components/AppText';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Screen } from '../../components/Screen';
 import { useT } from '../../i18n';
-import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { OwnerStackParamList } from '../../navigation/types';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ListItem,
+  Screen,
+  SkeletonCard,
+  haptics,
+  radius,
+  spacing,
+} from '../../ui';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'OwnerHome'>;
 
 export function OwnerHomeScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
-  const clearWorkspace = useWorkspaceStore((s) => s.clearWorkspace);
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
   const activeBranchId = useWorkspaceStore((s) => s.activeBranchId);
   const setActiveBranchId = useWorkspaceStore((s) => s.setActiveBranchId);
 
@@ -43,143 +51,154 @@ export function OwnerHomeScreen({ navigation }: Props) {
       : (activeBranch?.address as any)?.address;
 
   return (
-    <View style={{ flex: 1 }}>
-      <WorkspaceHeader title={t('workspace.owner.title')} />
-      <Screen>
-        {/* Active Branch Section */}
-        {activeBranch ? (
-          <Card>
-            <View style={styles.branchHeader}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <AppText variant="caption">{t('owner.activeBranch')}</AppText>
-                <AppText variant="title" style={{ fontSize: 20 }}>
-                  {activeBranch.name}
-                </AppText>
-                {activeAddress ? (
-                  <AppText variant="caption">{activeAddress}</AppText>
-                ) : null}
-              </View>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('BranchList')}
-                style={[styles.switchPill, { borderColor: colors.primary }]}
-              >
-                <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                  {t('owner.switchBranch')}
-                </AppText>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        ) : (
-          <Card>
-            <AppText variant="body" style={{ fontWeight: '700', textAlign: 'center' }}>
-              {t('owner.noBranches')}
-            </AppText>
-            <View style={{ marginTop: 12 }}>
-              <Button
-                label={t('owner.createBranch')}
-                onPress={() => navigation.navigate('BranchEdit', {})}
-              />
-            </View>
-          </Card>
-        )}
+    <Screen
+      scrollable
+      refreshing={branchesQuery.isRefetching}
+      onRefresh={() => branchesQuery.refetch()}
+      contentContainerStyle={styles.container}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
+            {activeWorkspace?.business_name ?? t('workspace.owner.title')}
+          </AppText>
+          <AppText variant="title" style={styles.title}>
+            {t('nav.overview')}
+          </AppText>
+        </View>
+        <Badge label={t('role.OWNER')} variant="primary" />
+      </View>
 
-        {/* Setup Navigation Tiles */}
-        <View style={styles.tilesContainer}>
-          {/* Branches Tile */}
-          <Card onPress={() => navigation.navigate('BranchList')}>
-            <View style={styles.tileRow}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <AppText variant="body" style={{ fontWeight: '700' }}>
-                  {t('owner.branches')}
-                </AppText>
-                <AppText variant="caption">{t('owner.branchesSubtitle')}</AppText>
-              </View>
-              <AppText style={{ color: colors.primary, fontSize: 18, fontWeight: '700' }}>
-                →
+      {/* Active Branch Section */}
+      {branchesQuery.isLoading ? (
+        <SkeletonCard height={140} />
+      ) : activeBranch ? (
+        <Card style={styles.branchCard}>
+          <View style={styles.branchHeader}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
+                {t('owner.activeBranch')}
               </AppText>
+              <AppText variant="heading" style={{ fontSize: 20 }}>
+                {activeBranch.name}
+              </AppText>
+              {activeAddress ? (
+                <AppText variant="caption" style={{ color: colors.textMuted }}>
+                  {activeAddress}
+                </AppText>
+              ) : null}
             </View>
-          </Card>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                haptics.light();
+                navigation.navigate('BranchList');
+              }}
+              style={[styles.switchPill, { borderColor: colors.primary }]}
+            >
+              <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
+                {t('owner.switchBranch')}
+              </AppText>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      ) : (
+        <EmptyState
+          icon="business-outline"
+          title={t('owner.noBranches')}
+          description="Create your first branch to start configuring services and staff."
+          actionLabel={t('owner.createBranch')}
+          onAction={() => navigation.navigate('BranchEdit', {})}
+        />
+      )}
 
-          {/* Services & Prices Tile */}
-          <Card
+      {/* Management Sections List */}
+      <View style={styles.section}>
+        <AppText variant="heading" style={{ fontSize: 18 }}>
+          Management
+        </AppText>
+
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <ListItem
+            title={t('owner.branches')}
+            subtitle={t('owner.branchesSubtitle')}
+            left={<Ionicons name="business-outline" size={22} color={colors.primary} />}
             onPress={() => {
+              haptics.light();
+              navigation.navigate('BranchList');
+            }}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <ListItem
+            title={t('owner.services')}
+            subtitle={t('owner.servicesSubtitle')}
+            left={<Ionicons name="cut-outline" size={22} color={colors.primary} />}
+            onPress={() => {
+              haptics.light();
               if (activeBranch) {
                 navigation.navigate('ServiceList');
               } else {
                 navigation.navigate('BranchList');
               }
             }}
-          >
-            <View style={styles.tileRow}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <AppText variant="body" style={{ fontWeight: '700' }}>
-                  {t('owner.services')}
-                </AppText>
-                <AppText variant="caption">{t('owner.servicesSubtitle')}</AppText>
-              </View>
-              <AppText style={{ color: colors.primary, fontSize: 18, fontWeight: '700' }}>
-                →
-              </AppText>
-            </View>
-          </Card>
-
-          {/* Barbers & Invites Tile */}
-          <Card
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <ListItem
+            title={t('owner.barbers')}
+            subtitle={t('owner.barbersSubtitle')}
+            left={<Ionicons name="people-outline" size={22} color={colors.primary} />}
             onPress={() => {
+              haptics.light();
               if (activeBranch) {
                 navigation.navigate('BarberList');
               } else {
                 navigation.navigate('BranchList');
               }
             }}
-          >
-            <View style={styles.tileRow}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <AppText variant="body" style={{ fontWeight: '700' }}>
-                  {t('owner.barbers')}
-                </AppText>
-                <AppText variant="caption">{t('owner.barbersSubtitle')}</AppText>
-              </View>
-              <AppText style={{ color: colors.primary, fontSize: 18, fontWeight: '700' }}>
-                →
-              </AppText>
-            </View>
-          </Card>
-        </View>
-
-        {/* Back to Customer App */}
-        <View style={{ marginTop: 'auto', paddingTop: 16 }}>
-          <Button
-            variant="secondary"
-            label={t('workspace.backToCustomer')}
-            onPress={clearWorkspace}
           />
-        </View>
-      </Screen>
-    </View>
+        </Card>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  branchHeader: {
+  container: {
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    marginTop: spacing.xs,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  branchCard: {
+    gap: spacing.sm,
+  },
+  branchHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   switchPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
   },
-  tilesContainer: {
-    gap: 12,
-    marginTop: 8,
+  section: {
+    gap: spacing.sm,
   },
-  tileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  divider: {
+    height: 1,
+    marginLeft: 56,
   },
 });

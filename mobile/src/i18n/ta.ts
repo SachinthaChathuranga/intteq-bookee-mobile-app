@@ -54,6 +54,20 @@ export const ta: Translations = {
   'nav.explore': 'தேடுக',
   'nav.appointments': 'முன்பதிவுகள்',
   'nav.profile': 'சுயவிவரம்',
+  'nav.queue': 'வரிசை',
+  'nav.walkin': 'வாக்-இன்',
+  'nav.shift': 'ஷிப்ட்',
+  'nav.floor': 'நேரலை தளம்',
+  'nav.overview': 'மேலோட்டம்',
+  'nav.branches': 'கிளைகள்',
+  'nav.services': 'சேவைகள்',
+  'nav.barbers': 'பார்பர்கள்',
+  'nav.exitWorkspace': 'வாடிக்கையாளர் ஆப்',
+
+  'explore.filterAll': 'அனைத்தும்',
+  'explore.filterHaircut': 'முடி வெட்டுதல்',
+  'explore.filterBeard': 'தாடி திருத்துதல்',
+  'explore.filterKids': 'குழந்தைகள்',
 
   // Explore & Appointments
   'explore.title': 'சலூன்களைத் தேடுங்கள்',

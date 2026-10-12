@@ -1,149 +1,246 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { fetchSalons } from '../../api/customer';
 import { AppText } from '../../components/AppText';
-import { Badge } from '../../components/Badge';
-import { Card } from '../../components/Card';
-import { Screen } from '../../components/Screen';
-import { TextField } from '../../components/TextField';
 import { useT } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
+import { Badge, Card, Chip, EmptyState, Input, Screen, SkeletonCard, spacing } from '../../ui';
 import { formatCurrency } from '../../utils/format';
+
+const SALON_IMAGE_COVERS = [
+  'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=80',
+];
 
 export function ExploreScreen() {
   const t = useT();
   const { colors } = useTheme();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'haircut' | 'beard' | 'kids'>('all');
+
+  const filterKeywords: Record<'all' | 'haircut' | 'beard' | 'kids', string> = {
+    all: '',
+    haircut: 'hair',
+    beard: 'beard',
+    kids: 'kid',
+  };
+
+  const effectiveQuery = searchTerm.trim() || filterKeywords[selectedFilter] || undefined;
 
   const salonsQuery = useQuery({
-    queryKey: ['customer-salons-search', searchTerm],
-    queryFn: () => fetchSalons({ query: searchTerm.trim() || undefined }),
+    queryKey: ['customer-salons-search', effectiveQuery],
+    queryFn: () => fetchSalons({ query: effectiveQuery }),
   });
 
   const salons = salonsQuery.data?.salons ?? [];
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={salonsQuery.isRefetching}
-            onRefresh={() => salonsQuery.refetch()}
-          />
-        }
-      >
-        <AppText variant="title" style={{ fontSize: 24 }}>
+    <Screen
+      scrollable
+      refreshing={salonsQuery.isRefetching}
+      onRefresh={() => salonsQuery.refetch()}
+      contentContainerStyle={styles.container}
+    >
+      {/* Title */}
+      <View style={styles.header}>
+        <AppText variant="title" style={styles.title}>
           {t('explore.title')}
         </AppText>
+        <AppText variant="caption" style={{ color: colors.textMuted }}>
+          {t('explore.placeholder')}
+        </AppText>
+      </View>
 
-        {/* Search Field */}
-        <TextField
-          label=""
-          placeholder={t('explore.searchPlaceholder')}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          clearButtonMode="while-editing"
+      {/* Modern Search Input */}
+      <Input
+        placeholder={t('explore.searchPlaceholder')}
+        value={searchTerm}
+        onChangeText={setSearchTerm}
+        onClear={() => setSearchTerm('')}
+        leftIcon={<Ionicons name="search" size={20} color={colors.textMuted} />}
+        clearable
+      />
+
+      {/* Filter Chips Horizontal Row */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+      >
+        <Chip
+          label={t('explore.filterAll')}
+          selected={selectedFilter === 'all'}
+          onPress={() => setSelectedFilter('all')}
         />
+        <Chip
+          label={t('explore.filterHaircut')}
+          selected={selectedFilter === 'haircut'}
+          onPress={() => setSelectedFilter('haircut')}
+        />
+        <Chip
+          label={t('explore.filterBeard')}
+          selected={selectedFilter === 'beard'}
+          onPress={() => setSelectedFilter('beard')}
+        />
+        <Chip
+          label={t('explore.filterKids')}
+          selected={selectedFilter === 'kids'}
+          onPress={() => setSelectedFilter('kids')}
+        />
+      </ScrollView>
 
-        {/* Results Count Header */}
-        <View style={styles.resultsHeader}>
-          <AppText variant="caption" style={{ color: colors.textMuted }}>
-            {searchTerm.trim() ? `Search results for "${searchTerm.trim()}"` : t('explore.title')}
-          </AppText>
-          <Badge label={String(salons.length)} variant="primary" />
+      {/* Results Header */}
+      <View style={styles.resultsHeader}>
+        <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '600' }}>
+          {searchTerm.trim()
+            ? `Results for "${searchTerm.trim()}"`
+            : `${salons.length} salons nearby`}
+        </AppText>
+        <Badge label={String(salons.length)} variant="primary" />
+      </View>
+
+      {/* List State */}
+      {salonsQuery.isLoading ? (
+        <View style={{ gap: spacing.lg }}>
+          <SkeletonCard height={220} />
+          <SkeletonCard height={220} />
         </View>
+      ) : salons.length === 0 ? (
+        <EmptyState
+          icon="search-outline"
+          title={t('explore.empty')}
+          description={t('explore.emptySub')}
+          actionLabel="Clear Search"
+          onAction={() => {
+            setSearchTerm('');
+            setSelectedFilter('all');
+          }}
+        />
+      ) : (
+        salons.map((salon, index) => {
+          const minPrice =
+            salon.services.length > 0
+              ? Math.min(...salon.services.map((s) => s.price))
+              : null;
+          const coverImage = SALON_IMAGE_COVERS[index % SALON_IMAGE_COVERS.length];
 
-        {/* Loading State */}
-        {salonsQuery.isLoading ? (
-          <Card>
-            <AppText variant="caption" style={{ textAlign: 'center' }}>
-              {t('app.loading')}
-            </AppText>
-          </Card>
-        ) : salons.length === 0 ? (
-          /* Empty State */
-          <Card>
-            <AppText variant="body" style={{ fontWeight: '600', textAlign: 'center' }}>
-              {t('explore.empty')}
-            </AppText>
-            <AppText variant="caption" style={{ textAlign: 'center', marginTop: 4, color: colors.textMuted }}>
-              {t('explore.emptySub')}
-            </AppText>
-          </Card>
-        ) : (
-          /* Salon List */
-          salons.map((salon) => {
-            const minPrice =
-              salon.services.length > 0
-                ? Math.min(...salon.services.map((s) => s.price))
-                : null;
-
-            return (
-              <Card key={salon.id} style={{ gap: 8 }}>
-                <View style={styles.titleRow}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText variant="body" style={{ fontWeight: '700', fontSize: 17 }}>
-                      {salon.business_name}
-                    </AppText>
-                    <AppText variant="caption" style={{ color: colors.primary, fontWeight: '600' }}>
-                      📍 {salon.branch_name}
+          return (
+            <Card
+              key={salon.id}
+              coverImage={coverImage}
+              coverHeight={150}
+              style={styles.salonCard}
+            >
+              <View style={styles.cardHeader}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <AppText variant="heading" style={{ fontSize: 18 }}>
+                    {salon.business_name}
+                  </AppText>
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location-sharp" size={14} color={colors.primary} />
+                    <AppText
+                      variant="caption"
+                      style={{ color: colors.primary, fontWeight: '700' }}
+                    >
+                      {salon.branch_name}
                     </AppText>
                   </View>
-                  {salon.distance_km !== null ? (
-                    <Badge label={`${salon.distance_km} km`} variant="primary" />
-                  ) : salon.active_barbers_count > 0 ? (
-                    <Badge label={`${salon.active_barbers_count} on shift`} variant="success" />
-                  ) : null}
                 </View>
 
-                <AppText variant="caption" style={{ color: colors.textMuted }}>
-                  {salon.address}
-                </AppText>
+                {salon.distance_km !== null ? (
+                  <Badge label={`${salon.distance_km} km`} variant="primary" />
+                ) : salon.active_barbers_count > 0 ? (
+                  <Badge label={`${salon.active_barbers_count} on shift`} variant="success" />
+                ) : null}
+              </View>
 
-                {/* Services summary */}
-                <View style={[styles.servicesRow, { borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 8 }]}>
+              <AppText variant="caption" style={{ color: colors.textMuted }}>
+                {salon.address}
+              </AppText>
+
+              {/* Services info footer */}
+              <View
+                style={[
+                  styles.cardFooter,
+                  { borderTopColor: colors.border, borderTopWidth: 1 },
+                ]}
+              >
+                <View style={styles.serviceMeta}>
+                  <Ionicons name="cut-outline" size={16} color={colors.textMuted} />
                   <AppText variant="caption" style={{ fontWeight: '600' }}>
                     {t('explore.servicesCount', { count: salon.services.length })}
                   </AppText>
-                  {minPrice !== null ? (
-                    <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                      {t('explore.fromPrice', { price: formatCurrency(minPrice) })}
-                    </AppText>
-                  ) : null}
                 </View>
-              </Card>
-            );
-          })
-        )}
-      </ScrollView>
+
+                {minPrice !== null ? (
+                  <AppText
+                    variant="caption"
+                    style={{ color: colors.primary, fontWeight: '800', fontSize: 13 }}
+                  >
+                    {t('explore.fromPrice', { price: formatCurrency(minPrice) })}
+                  </AppText>
+                ) : null}
+              </View>
+            </Card>
+          );
+        })
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    paddingBottom: 40,
-    gap: 16,
+  container: {
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+  header: {
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  chipsRow: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   resultsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
   },
-  titleRow: {
+  salonCard: {
+    gap: spacing.sm,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  servicesRow: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  serviceMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });

@@ -53,6 +53,20 @@ export const en = {
   'nav.explore': 'Explore',
   'nav.appointments': 'Appointments',
   'nav.profile': 'Profile',
+  'nav.queue': 'Queue',
+  'nav.walkin': 'Walk-in',
+  'nav.shift': 'Shift',
+  'nav.floor': 'Live Floor',
+  'nav.overview': 'Overview',
+  'nav.branches': 'Branches',
+  'nav.services': 'Services',
+  'nav.barbers': 'Barbers',
+  'nav.exitWorkspace': 'Customer App',
+
+  'explore.filterAll': 'All',
+  'explore.filterHaircut': 'Haircut',
+  'explore.filterBeard': 'Beard',
+  'explore.filterKids': 'Kids',
 
   // Explore & Appointments
   'explore.title': 'Explore Salons',

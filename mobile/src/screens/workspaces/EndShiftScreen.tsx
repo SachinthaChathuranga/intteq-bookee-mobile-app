@@ -18,6 +18,7 @@ import { Screen } from '../../components/Screen';
 import { useT } from '../../i18n';
 import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { BarberStackParamList } from '../../navigation/types';
+import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { formatCurrency } from '../../utils/format';
 
@@ -27,7 +28,8 @@ export function EndShiftScreen({ route, navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
-  const { branchId } = route.params;
+  const activeBranchId = useWorkspaceStore((s) => s.activeBranchId) ?? useWorkspaceStore((s) => s.activeWorkspace?.branch_id);
+  const branchId = route.params?.branchId ?? activeBranchId ?? '';
 
   const queueQuery = useQuery({
     queryKey: ['barber-queue', branchId],

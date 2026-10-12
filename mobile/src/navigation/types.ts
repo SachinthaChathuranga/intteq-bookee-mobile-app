@@ -5,7 +5,16 @@ export type CustomerTabParamList = {
   Profile: undefined;
 };
 
+export type OwnerTabParamList = {
+  OwnerHome: undefined;
+  BranchList: undefined;
+  ServiceList: undefined;
+  BarberList: undefined;
+  ExitWorkspace?: undefined;
+};
+
 export type OwnerStackParamList = {
+  OwnerTabs: undefined;
   OwnerHome: undefined;
   BranchList: undefined;
   BranchEdit: { branchId?: string };
@@ -13,17 +22,21 @@ export type OwnerStackParamList = {
   ServiceEdit: { serviceId?: string; branchId: string };
   BarberList: undefined;
   InviteBarber: { branchId: string };
+  ExitWorkspace?: undefined;
 };
+
 
 export type BarberStackParamList = {
   BarberHome: undefined;
-  EndShift: { branchId: string; shiftId: string };
-  AddWalkIn: { branchId: string; preselectedBarberId?: string };
+  EndShift: { branchId?: string; shiftId?: string };
+  AddWalkIn: { branchId?: string; preselectedBarberId?: string };
+  ExitWorkspace?: undefined;
 };
 
 export type ReceptionistStackParamList = {
   ReceptionistHome: undefined;
-  AddWalkIn: { branchId: string; preselectedBarberId?: string };
+  AddWalkIn: { branchId?: string; preselectedBarberId?: string };
+  ExitWorkspace?: undefined;
 };
 
 export type AdminStackParamList = {

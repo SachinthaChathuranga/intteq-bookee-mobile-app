@@ -15,10 +15,12 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { formatCurrency } from '../../utils/format';
 import { WalkInSuccessModal } from './WalkInSuccessModal';
 
+import { useWorkspaceStore } from '../../store/workspaceStore';
+
 interface Props {
-  route: {
-    params: {
-      branchId: string;
+  route?: {
+    params?: {
+      branchId?: string;
       preselectedBarberId?: string;
     };
   };
@@ -28,7 +30,9 @@ interface Props {
 }
 
 export function AddWalkInScreen({ route, navigation }: Props) {
-  const { branchId, preselectedBarberId } = route.params;
+  const activeBranchId = useWorkspaceStore((s) => s.activeBranchId) ?? useWorkspaceStore((s) => s.activeWorkspace?.branch_id);
+  const branchId = route?.params?.branchId ?? activeBranchId ?? '';
+  const preselectedBarberId = route?.params?.preselectedBarberId;
   const t = useT();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
