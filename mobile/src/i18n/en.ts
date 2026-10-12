@@ -56,7 +56,13 @@ export const en = {
 
   // Explore & Appointments
   'explore.title': 'Explore Salons',
-  'explore.placeholder': 'Search salons by name or location — coming in Milestone 6',
+  'explore.placeholder': 'Search salons by name or location',
+  'explore.searchPlaceholder': 'Search by salon or location…',
+  'explore.empty': 'No salons found.',
+  'explore.emptySub': 'Try a different search term or check back later.',
+  'explore.servicesCount': '{count} services',
+  'explore.fromPrice': 'From {price}',
+  'home.featuredSalons': 'Featured Salons',
   'appointments.title': 'My Appointments',
   'appointments.placeholder': 'Your upcoming and past bookings — coming in Milestone 7',
 

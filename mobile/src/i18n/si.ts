@@ -57,7 +57,13 @@ export const si: Translations = {
 
   // Explore & Appointments
   'explore.title': 'සැලූන් සොයන්න',
-  'explore.placeholder': 'නම හෝ ස්ථානය අනුව සැලූන් සොයන්න — 6 වන පියවරෙන් පැමිණේ',
+  'explore.placeholder': 'නම හෝ ස්ථානය අනුව සැලූන් සොයන්න',
+  'explore.searchPlaceholder': 'සැලූනය හෝ ස්ථානය අනුව සොයන්න…',
+  'explore.empty': 'සැලූන් කිසිවක් හමු නොවීය.',
+  'explore.emptySub': 'වෙනත් නමක් හෝ ස්ථානයක් සොයන්න.',
+  'explore.servicesCount': 'සේවා {count}ක්',
+  'explore.fromPrice': '{price} සිට',
+  'home.featuredSalons': 'ප්‍රමුඛ සැලූන්',
   'appointments.title': 'මගේ වෙන්කිරීම්',
   'appointments.placeholder': 'ඔබේ ඉදිරි සහ පසුගිය වෙන්කිරීම් — 7 වන පියවරෙන් පැමිණේ',
 

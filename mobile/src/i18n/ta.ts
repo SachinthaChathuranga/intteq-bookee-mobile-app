@@ -57,7 +57,13 @@ export const ta: Translations = {
 
   // Explore & Appointments
   'explore.title': 'சலூன்களைத் தேடுங்கள்',
-  'explore.placeholder': 'பெயர் அல்லது இருப்பிடத்தின்படி சலூன்களைத் தேடுங்கள் — மைல்கல் 6 இல் வரும்',
+  'explore.placeholder': 'பெயர் அல்லது இருப்பிடத்தின்படி சலூன்களைத் தேடுங்கள்',
+  'explore.searchPlaceholder': 'சலூன் அல்லது இருப்பிடம் மூலம் தேடவும்…',
+  'explore.empty': 'சலூன்கள் எதுவும் கிடைக்கவில்லை.',
+  'explore.emptySub': 'வேறு சொல் அல்லது இருப்பிடத்தை முயற்சிக்கவும்.',
+  'explore.servicesCount': '{count} சேவைகள்',
+  'explore.fromPrice': '{price} முதல்',
+  'home.featuredSalons': 'சிறப்பு சலூன்கள்',
   'appointments.title': 'எனது முன்பதிவுகள்',
   'appointments.placeholder': 'உங்கள் வரவிருக்கும் மற்றும் கடந்தகால முன்பதிவுகள் — மைல்கல் 7 இல் வரும்',
 

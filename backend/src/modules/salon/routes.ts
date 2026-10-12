@@ -35,6 +35,7 @@ import {
   startShift,
 } from './shiftRepo.js';
 import { assignGeneralQueueEntry, getBranchLiveFloor } from './liveFloorRepo.js';
+import { searchSalonBranches } from './searchRepo.js';
 import { calculateWaitTimes, createWalkIn } from './walkInRepo.js';
 
 export const salonRouter = Router();
@@ -518,4 +519,29 @@ salonRouter.post(
     }
   },
 );
+
+// Customer Salon Discovery & Search
+salonRouter.get('/search', async (req, res, next) => {
+  try {
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    const lat = req.query.lat ? parseFloat(String(req.query.lat)) : undefined;
+    const lng = req.query.lng ? parseFloat(String(req.query.lng)) : undefined;
+    const radius_km = req.query.radius_km ? parseFloat(String(req.query.radius_km)) : undefined;
+
+    const salons = await searchSalonBranches({ query, lat, lng, radius_km });
+    res.json({ salons });
+  } catch (err) {
+    next(err);
+  }
+});
+
+salonRouter.get('/branches', async (req, res, next) => {
+  try {
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    const salons = await searchSalonBranches({ query });
+    res.json({ salons });
+  } catch (err) {
+    next(err);
+  }
+});
 

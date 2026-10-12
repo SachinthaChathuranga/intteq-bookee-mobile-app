@@ -94,8 +94,8 @@ export async function runSeed() {
 
     // 3. Branches: Colombo and Kandy
     const branchDefs = [
-      { name: 'Colombo', address: '123 Galle Road, Colombo 03', phone: '0112000001' },
-      { name: 'Kandy', address: '45 Peradeniya Road, Kandy', phone: '0812000002' },
+      { name: 'Colombo', address: '123 Galle Road, Colombo 03', phone: '0112000001', lat: 6.9271, lng: 79.8612 },
+      { name: 'Kandy', address: '45 Peradeniya Road, Kandy', phone: '0812000002', lat: 7.2906, lng: 80.6337 },
     ];
 
     const branchMap: Record<string, string> = {};
@@ -109,20 +109,20 @@ export async function runSeed() {
       if (bRes.rows[0]) {
         branchId = bRes.rows[0].id;
         await client.query(
-          `UPDATE branches SET address = $1, phone = $2 WHERE id = $3`,
-          [bDef.address, bDef.phone, branchId],
+          `UPDATE branches SET address = $1, phone = $2, lat = $3, lng = $4 WHERE id = $5`,
+          [bDef.address, bDef.phone, bDef.lat, bDef.lng, branchId],
         );
       } else {
         const newBranch = await client.query<{ id: string }>(
-          `INSERT INTO branches (business_id, name, address, phone)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO branches (business_id, name, address, phone, lat, lng)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id`,
-          [businessId, bDef.name, bDef.address, bDef.phone],
+          [businessId, bDef.name, bDef.address, bDef.phone, bDef.lat, bDef.lng],
         );
         branchId = newBranch.rows[0]!.id;
       }
       branchMap[bDef.name] = branchId;
-      console.log(`  📍 Branch: ${bDef.name} (${branchId})`);
+      console.log(`  📍 Branch: ${bDef.name} (${branchId}) [${bDef.lat}, ${bDef.lng}]`);
 
       // Working Hours (Mon-Sat 09:00-19:00, Sun 10:00-16:00)
       for (let day = 0; day <= 6; day++) {
