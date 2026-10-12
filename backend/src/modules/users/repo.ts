@@ -19,15 +19,26 @@ export async function findUserById(id: string, db: Queryable = pool): Promise<Us
   return rows[0] ?? null;
 }
 
-export interface RoleAssignmentRow {
+export interface EnrichedRoleAssignmentRow {
   id: string;
   role: 'SUPER_ADMIN' | 'OWNER' | 'RECEPTIONIST' | 'BARBER';
   business_id: string | null;
+  business_name: string | null;
+  business_type: string | null;
 }
 
-export async function findRolesByUserId(userId: string): Promise<RoleAssignmentRow[]> {
-  const { rows } = await pool.query<RoleAssignmentRow>(
-    'SELECT id, role, business_id FROM role_assignments WHERE user_id = $1',
+export async function findRolesByUserId(userId: string): Promise<EnrichedRoleAssignmentRow[]> {
+  const { rows } = await pool.query<EnrichedRoleAssignmentRow>(
+    `SELECT 
+       ra.id, 
+       ra.role, 
+       ra.business_id,
+       b.name AS business_name,
+       b.type AS business_type
+     FROM role_assignments ra
+     LEFT JOIN businesses b ON ra.business_id = b.id
+     WHERE ra.user_id = $1
+     ORDER BY ra.created_at ASC`,
     [userId],
   );
   return rows;

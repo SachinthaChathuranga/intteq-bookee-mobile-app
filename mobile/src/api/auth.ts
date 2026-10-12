@@ -1,4 +1,4 @@
-import type { User } from '../store/authStore';
+import type { User, UserRole } from '../store/authStore';
 import { apiRequest } from './client';
 
 export interface SessionResponse {
@@ -17,7 +17,10 @@ export const verifyOtp = (phone: string, code: string) =>
 export const logout = (refreshToken: string) =>
   apiRequest('/auth/logout', { method: 'POST', body: { refreshToken }, auth: false });
 
-export const fetchMe = () => apiRequest<{ user: User }>('/me');
+export const fetchMe = () => apiRequest<{ user: User; roles: UserRole[] }>('/me');
 
 export const updateMe = (patch: Partial<Pick<User, 'name' | 'language' | 'theme'>>) =>
   apiRequest<{ user: User }>('/me', { method: 'PATCH', body: patch });
+
+export const seedWorkspacesDev = () =>
+  apiRequest<{ success: boolean; roles: UserRole[] }>('/dev/seed-workspaces', { method: 'POST' });

@@ -31,6 +31,8 @@ beforeEach(async () => {
   sent.length = 0;
   await pool.query('DELETE FROM refresh_tokens');
   await pool.query('DELETE FROM otp_codes');
+  await pool.query('DELETE FROM role_assignments');
+  await pool.query('DELETE FROM businesses');
   await pool.query('DELETE FROM users WHERE phone = $1', [NORMALISED]);
 });
 
@@ -93,5 +95,41 @@ describe('auth', () => {
     const { refreshToken } = await login();
     await request(app).post('/auth/logout').send({ refreshToken }).expect(204);
     await request(app).post('/auth/refresh').send({ refreshToken }).expect(401);
+  });
+
+  it('seeds staff workspaces and returns enriched roles with business details', async () => {
+    const { accessToken } = await login();
+    const seedRes = await request(app)
+      .post('/dev/seed-workspaces')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(seedRes.body.success).toBe(true);
+    expect(seedRes.body.roles.length).toBe(3);
+
+    const meRes = await request(app)
+      .get('/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(meRes.body.roles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'OWNER',
+          business_name: "Kasun's Salon",
+          business_type: 'SALON',
+        }),
+        expect.objectContaining({
+          role: 'BARBER',
+          business_name: "Kasun's Salon",
+          business_type: 'SALON',
+        }),
+        expect.objectContaining({
+          role: 'RECEPTIONIST',
+          business_name: "Kasun's Salon",
+          business_type: 'SALON',
+        }),
+      ]),
+    );
   });
 });

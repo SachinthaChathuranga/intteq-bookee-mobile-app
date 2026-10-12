@@ -9,6 +9,16 @@ export interface User {
   theme: 'light' | 'dark' | 'system';
 }
 
+export type StaffRole = 'SUPER_ADMIN' | 'OWNER' | 'RECEPTIONIST' | 'BARBER';
+
+export interface UserRole {
+  id: string;
+  role: StaffRole;
+  business_id: string | null;
+  business_name: string | null;
+  business_type: string | null;
+}
+
 const REFRESH_KEY = 'refreshToken';
 
 interface AuthState {
@@ -17,9 +27,11 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   user: User | null;
-  setSession: (s: { accessToken: string; refreshToken: string; user: User }) => Promise<void>;
+  roles: UserRole[];
+  setSession: (s: { accessToken: string; refreshToken: string; user: User; roles?: UserRole[] }) => Promise<void>;
   setTokens: (t: { accessToken: string; refreshToken: string }) => Promise<void>;
   setUser: (user: User) => void;
+  setRoles: (roles: UserRole[]) => void;
   signOut: () => Promise<void>;
   markSignedOut: () => void;
 }
@@ -29,20 +41,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   refreshToken: null,
   user: null,
-  setSession: async ({ accessToken, refreshToken, user }) => {
+  roles: [],
+  setSession: async ({ accessToken, refreshToken, user, roles = [] }) => {
     await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
-    set({ status: 'signedIn', accessToken, refreshToken, user });
+    set({ status: 'signedIn', accessToken, refreshToken, user, roles });
   },
   setTokens: async ({ accessToken, refreshToken }) => {
     await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
     set({ accessToken, refreshToken });
   },
   setUser: (user) => set({ user }),
+  setRoles: (roles) => set({ roles }),
   signOut: async () => {
     await SecureStore.deleteItemAsync(REFRESH_KEY);
-    set({ status: 'signedOut', accessToken: null, refreshToken: null, user: null });
+    set({ status: 'signedOut', accessToken: null, refreshToken: null, user: null, roles: [] });
   },
-  markSignedOut: () => set({ status: 'signedOut', accessToken: null, refreshToken: null, user: null }),
+  markSignedOut: () => set({ status: 'signedOut', accessToken: null, refreshToken: null, user: null, roles: [] }),
 }));
 
 export const readStoredRefreshToken = () => SecureStore.getItemAsync(REFRESH_KEY);

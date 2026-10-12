@@ -41,4 +41,50 @@ export const ta: Translations = {
   'home.welcome': 'வணக்கம், {name}!',
   'home.placeholder': '{salon} ஒன்றைத் தேடி வரிசையில் சேருங்கள் — விரைவில்.',
   'home.signOut': 'வெளியேறு',
+
+  // Customer Navigation Tabs
+  'nav.home': 'முகப்பு',
+  'nav.explore': 'தேடுக',
+  'nav.appointments': 'முன்பதிவுகள்',
+  'nav.profile': 'சுயவிவரம்',
+
+  // Explore & Appointments
+  'explore.title': 'சலூன்களைத் தேடுங்கள்',
+  'explore.placeholder': 'பெயர் அல்லது இருப்பிடத்தின்படி சலூன்களைத் தேடுங்கள் — மைல்கல் 6 இல் வரும்',
+  'appointments.title': 'எனது முன்பதிவுகள்',
+  'appointments.placeholder': 'உங்கள் வரவிருக்கும் மற்றும் கடந்தகால முன்பதிவுகள் — மைல்கல் 7 இல் வரும்',
+
+  // Profile Screen
+  'profile.title': 'சுயவிவரம்',
+  'profile.accountDetails': 'கணக்கு விவரங்கள்',
+  'profile.phone': 'தொலைபேசி எண்',
+  'profile.preferences': 'விருப்பத்தேர்வுகள்',
+  'profile.language': 'மொழி',
+  'profile.theme': 'தீம்',
+  'profile.theme.light': 'வெளிர்',
+  'profile.theme.dark': 'இருண்ட',
+  'profile.theme.system': 'சாதன முறை',
+  'profile.workspaces': 'எனது பணியிடங்கள்',
+  'profile.workspacesSubtitle': 'பணியாளர் மற்றும் நிர்வாக பலகைகளுக்கு மாறவும்',
+  'profile.devSeedButton': 'Dev: பணியிடங்களை உருவாக்கு',
+  'profile.devSeedSuccess': 'பணியிடங்கள் உருவாக்கப்பட்டன!',
+  'profile.signOut': 'வெளியேறு',
+
+  // Roles
+  'role.SUPER_ADMIN': 'முதன்மை நிர்வாகி',
+  'role.OWNER': 'உரிமையாளர்',
+  'role.BARBER': 'பார்பர்',
+  'role.RECEPTIONIST': 'வரவேற்பாளர்',
+
+  // Workspaces
+  'workspace.backToCustomer': 'வாடிக்கையாளர் செயலிக்குத் திரும்பு',
+  'workspace.activeBanner': 'பணியாளர் பணியிடம்',
+  'workspace.owner.title': 'உரிமையாளர் பலகை',
+  'workspace.owner.placeholder': 'சலூன் வருமானம், கிளைகள் மற்றும் பணியாளர் விவரங்கள் — மைல்கல் 3 இல் கிடைக்கும்',
+  'workspace.barber.title': 'பார்பர் வரிசை',
+  'workspace.barber.placeholder': 'ஷிப்ட் கட்டுப்பாடுகள் மற்றும் வாடிக்கையாளர் வரிசை — மைல்கல் 4 இல் கிடைக்கும்',
+  'workspace.receptionist.title': 'வரவேற்பு வரிசை',
+  'workspace.receptionist.placeholder': 'கிளை வரிசை மற்றும் நேரடி பதிவுகள் — மைல்கல் 5 இல் கிடைக்கும்',
+  'workspace.admin.title': 'முதன்மை நிர்வாக பலகை',
+  'workspace.admin.placeholder': 'வணிகக் கணக்குகள் மேலாண்மை — மைல்கல் 11 இல் கிடைக்கும்',
 };

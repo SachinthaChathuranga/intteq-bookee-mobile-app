@@ -41,4 +41,50 @@ export const si: Translations = {
   'home.welcome': 'ආයුබෝවන්, {name}!',
   'home.placeholder': '{salon} එකක් සොයා පෝලිමට එක් වන්න — ඉක්මනින් එනවා.',
   'home.signOut': 'ඉවත් වන්න',
+
+  // Customer Navigation Tabs
+  'nav.home': 'මුල් පිටුව',
+  'nav.explore': 'සොයන්න',
+  'nav.appointments': 'වෙන්කිරීම්',
+  'nav.profile': 'පැතිකඩ',
+
+  // Explore & Appointments
+  'explore.title': 'සැලූන් සොයන්න',
+  'explore.placeholder': 'නම හෝ ස්ථානය අනුව සැලූන් සොයන්න — 6 වන පියවරෙන් පැමිණේ',
+  'appointments.title': 'මගේ වෙන්කිරීම්',
+  'appointments.placeholder': 'ඔබේ ඉදිරි සහ පසුගිය වෙන්කිරීම් — 7 වන පියවරෙන් පැමිණේ',
+
+  // Profile Screen
+  'profile.title': 'පැතිකඩ',
+  'profile.accountDetails': 'ගිණුම් විස්තර',
+  'profile.phone': 'දුරකථන අංකය',
+  'profile.preferences': 'මනාපයන්',
+  'profile.language': 'භාෂාව',
+  'profile.theme': 'තේමාව',
+  'profile.theme.light': 'ලා පැහැ',
+  'profile.theme.dark': 'අඳුරු පැහැ',
+  'profile.theme.system': 'පද්ධතිය අනුව',
+  'profile.workspaces': 'මගේ කාර්යාල',
+  'profile.workspacesSubtitle': 'කාර්ය මණ්ඩල පුවරු වෙත මාරු වන්න',
+  'profile.devSeedButton': 'Dev: කාර්යාල සාදන්න',
+  'profile.devSeedSuccess': 'කාර්යාල සාර්ථකව සාදන ලදී!',
+  'profile.signOut': 'ඉවත් වන්න',
+
+  // Roles
+  'role.SUPER_ADMIN': 'ප්‍රධාන පරිපාලක',
+  'role.OWNER': 'හිමිකරු',
+  'role.BARBER': 'බාබර්',
+  'role.RECEPTIONIST': 'පිළිගැනීමේ නිලධාරී',
+
+  // Workspaces
+  'workspace.backToCustomer': 'පාරිභෝගික යෙදුම වෙත ආපසු',
+  'workspace.activeBanner': 'කාර්ය මණ්ඩල කාර්යාලය',
+  'workspace.owner.title': 'හිමිකරු පුවරුව',
+  'workspace.owner.placeholder': 'සැලූන් ආදායම, ශාඛා සහ සේවක විස්තර — 3 වන පියවරෙන් ලැබේ',
+  'workspace.barber.title': 'බාබර් පෝලිම',
+  'workspace.barber.placeholder': 'වැඩ මුරය සහ පාරිභෝගික පෝලිම — 4 වන පියවරෙන් ලැබේ',
+  'workspace.receptionist.title': 'පිළිගැනීමේ පෝලිම',
+  'workspace.receptionist.placeholder': 'ශාඛා පෝලිම සහ සෘජු ඇතුළත්වීම් — 5 වන පියවරෙන් ලැබේ',
+  'workspace.admin.title': 'ප්‍රධාන පරිපාලක පුවරුව',
+  'workspace.admin.placeholder': 'ව්‍යාපාර ගිණුම් කළමනාකරණය — 11 වන පියවරෙන් ලැබේ',
 };

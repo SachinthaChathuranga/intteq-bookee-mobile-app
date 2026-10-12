@@ -40,6 +40,52 @@ export const en = {
   'home.welcome': 'Hi, {name}!',
   'home.placeholder': 'Find a {salon} and join the queue — coming soon.',
   'home.signOut': 'Sign out',
+
+  // Customer Navigation Tabs
+  'nav.home': 'Home',
+  'nav.explore': 'Explore',
+  'nav.appointments': 'Appointments',
+  'nav.profile': 'Profile',
+
+  // Explore & Appointments
+  'explore.title': 'Explore Salons',
+  'explore.placeholder': 'Search salons by name or location — coming in Milestone 6',
+  'appointments.title': 'My Appointments',
+  'appointments.placeholder': 'Your upcoming and past bookings — coming in Milestone 7',
+
+  // Profile Screen
+  'profile.title': 'Profile',
+  'profile.accountDetails': 'Account Details',
+  'profile.phone': 'Phone number',
+  'profile.preferences': 'Preferences',
+  'profile.language': 'Language',
+  'profile.theme': 'Theme',
+  'profile.theme.light': 'Light',
+  'profile.theme.dark': 'Dark',
+  'profile.theme.system': 'System',
+  'profile.workspaces': 'My Workspaces',
+  'profile.workspacesSubtitle': 'Switch to staff and administrative dashboards',
+  'profile.devSeedButton': 'Dev: Seed staff workspaces',
+  'profile.devSeedSuccess': 'Workspaces seeded! Pull to refresh or check below.',
+  'profile.signOut': 'Sign out',
+
+  // Roles
+  'role.SUPER_ADMIN': 'Super Admin',
+  'role.OWNER': 'Owner',
+  'role.BARBER': 'Barber',
+  'role.RECEPTIONIST': 'Receptionist',
+
+  // Workspaces
+  'workspace.backToCustomer': 'Back to customer app',
+  'workspace.activeBanner': 'Staff Workspace',
+  'workspace.owner.title': 'Owner Dashboard',
+  'workspace.owner.placeholder': 'Salon income, branches, and staff overview — available in Milestone 3',
+  'workspace.barber.title': 'Barber Queue',
+  'workspace.barber.placeholder': 'Shift controls and customer queue — available in Milestone 4',
+  'workspace.receptionist.title': 'Reception Queue',
+  'workspace.receptionist.placeholder': 'Branch queue and walk-in check-in — available in Milestone 5',
+  'workspace.admin.title': 'Super Admin Dashboard',
+  'workspace.admin.placeholder': 'Business accounts management — available in Milestone 11',
 };
 
 export type TranslationKey = keyof typeof en;

@@ -13,10 +13,10 @@ export async function bootstrapAuth(): Promise<void> {
 
   useAuthStore.setState({ refreshToken });
   try {
-    const { user } = await fetchMe();
+    const { user, roles } = await fetchMe();
     // The refresh flow may have signed us out if the token was rejected.
     if (useAuthStore.getState().status === 'signedOut') return;
-    useAuthStore.setState({ status: 'signedIn', user });
+    useAuthStore.setState({ status: 'signedIn', user, roles: roles ?? [] });
     useSettingsStore.setState({ language: user.language, theme: user.theme });
   } catch {
     markSignedOut();

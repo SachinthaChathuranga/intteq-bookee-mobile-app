@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { requestOtp, updateMe, verifyOtp } from '../api/auth';
+import { fetchMe, requestOtp, updateMe, verifyOtp } from '../api/auth';
 import { errorKey } from '../api/errors';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
@@ -34,6 +34,13 @@ export function OtpScreen({ route, navigation }: Props) {
     onSuccess: async (session) => {
       const settings = useSettingsStore.getState();
       await useAuthStore.getState().setSession(session);
+      try {
+        const { user, roles } = await fetchMe();
+        useAuthStore.getState().setUser(user);
+        useAuthStore.getState().setRoles(roles);
+      } catch {
+        // Fallback to session user
+      }
       if (session.isNewUser) {
         // New account: the choices made on this device become the account's preferences.
         const { user } = await updateMe({ language: settings.language ?? session.user.language, theme: settings.theme });

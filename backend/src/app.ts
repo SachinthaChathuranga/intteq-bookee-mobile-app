@@ -6,6 +6,9 @@ import { errorHandler } from './middleware/index.js';
 import { authRouter } from './modules/auth/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 
+import { config } from './config/index.js';
+import { devRouter } from './modules/dev/routes.js';
+
 export function createApp() {
   const app = express();
   app.use(helmet());
@@ -23,6 +26,10 @@ export function createApp() {
 
   app.use('/auth', authRouter);
   app.use('/me', usersRouter);
+
+  if (config.NODE_ENV !== 'production') {
+    app.use('/dev', devRouter);
+  }
 
   app.use(errorHandler);
   return app;
