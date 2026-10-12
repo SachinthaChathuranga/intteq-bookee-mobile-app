@@ -34,6 +34,8 @@ import {
   resumeShift,
   startShift,
 } from './shiftRepo.js';
+import { assignGeneralQueueEntry, getBranchLiveFloor } from './liveFloorRepo.js';
+import { calculateWaitTimes, createWalkIn } from './walkInRepo.js';
 
 export const salonRouter = Router();
 salonRouter.use(requireAuth);
@@ -448,3 +450,72 @@ salonRouter.post(
     }
   },
 );
+
+const walkInSchema = z.object({
+  mode: z.enum(['ANONYMOUS', 'VERIFIED']),
+  customerName: z.string().optional(),
+  phone: z.string().optional(),
+  serviceIds: z.array(z.string().uuid()).min(1),
+  barberId: z.string().uuid().optional().nullable(),
+});
+
+const assignGeneralSchema = z.object({
+  target_barber_id: z.string().uuid(),
+});
+
+// Live Floor (Receptionist + Barber)
+salonRouter.get('/branches/:branchId/live-floor', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const floor = await getBranchLiveFloor(branchId);
+    res.json(floor);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Calculate live wait times
+salonRouter.get('/branches/:branchId/wait-times', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const waitTimes = await calculateWaitTimes(branchId);
+    res.json(waitTimes);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Add Walk-in (Anonymous or Verified)
+salonRouter.post(
+  '/branches/:branchId/walk-ins',
+  validateBody(walkInSchema),
+  async (req, res, next) => {
+    try {
+      const branchId = String(req.params.branchId);
+      const result = await createWalkIn(branchId, req.body);
+      broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Assign General Queue Entry to Specific Barber
+salonRouter.post(
+  '/branches/:branchId/queue/:entryId/assign',
+  validateBody(assignGeneralSchema),
+  async (req, res, next) => {
+    try {
+      const branchId = String(req.params.branchId);
+      const entryId = String(req.params.entryId);
+      const updated = await assignGeneralQueueEntry(branchId, entryId, req.body.target_barber_id);
+      if (!updated) throw new HttpError(404, 'ENTRY_NOT_FOUND');
+      broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
+      res.json({ entry: updated });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+

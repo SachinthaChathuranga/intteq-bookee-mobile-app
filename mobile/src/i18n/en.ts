@@ -205,6 +205,31 @@ export const en = {
   'payment.tip': 'Tip (Rs.)',
   'payment.commissionPreview': 'Estimated Commission: {amount}',
   'payment.submit': 'Confirm & Complete',
+
+  // General Queue & Walk-ins (Milestone 5)
+  'walkin.title': 'Add Walk-in',
+  'walkin.modeAnon': 'Anonymous',
+  'walkin.modeVerified': 'Verified (Phone)',
+  'walkin.customerName': 'Customer Name',
+  'walkin.customerPhone': 'Customer Mobile',
+  'walkin.selectServices': 'Select Services',
+  'walkin.selectBarber': 'Choose Barber',
+  'walkin.anyBarber': 'Any Barber (Fastest)',
+  'walkin.anyBarberDesc': 'Joins branch general queue',
+  'walkin.estWait': 'Est. wait: {time}',
+  'walkin.submit': 'Add to Queue',
+  'walkin.tokenGenerated': 'Walk-in Added!',
+  'walkin.tokenLabel': 'Token: {token}',
+
+  'floor.title': 'Branch Live Floor',
+  'floor.generalQueue': 'General Queue',
+  'floor.activeBarbers': 'Active Barbers',
+  'floor.totalWaiting': 'Total Waiting: {count}',
+  'floor.assignTo': 'Assign to...',
+  'floor.noBarbersOnShift': 'No barbers currently on shift.',
+  'floor.noGeneralQueue': 'General queue is empty.',
+  'floor.barbersCount': '{count} on shift',
+  'floor.servingNow': 'Serving: {name}',
 };
 
 export type TranslationKey = keyof typeof en;

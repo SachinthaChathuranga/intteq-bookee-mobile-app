@@ -243,6 +243,20 @@ export function BarberHomeScreen({ navigation }: Props) {
             </View>
           </Card>
 
+          {/* Quick Add Walk-in */}
+          {activeBranchId && (
+            <Button
+              variant="secondary"
+              label={`+ ${t('walkin.title')}`}
+              onPress={() =>
+                navigation.navigate('AddWalkIn', {
+                  branchId: activeBranchId,
+                  preselectedBarberId: shiftQuery.data?.shift?.barber_id,
+                })
+              }
+            />
+          )}
+
           {/* Currently Serving Section */}
           {serving ? (
             <Card style={{ borderColor: colors.primary, borderWidth: 1.5 }}>

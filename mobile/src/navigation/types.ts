@@ -18,10 +18,12 @@ export type OwnerStackParamList = {
 export type BarberStackParamList = {
   BarberHome: undefined;
   EndShift: { branchId: string; shiftId: string };
+  AddWalkIn: { branchId: string; preselectedBarberId?: string };
 };
 
 export type ReceptionistStackParamList = {
   ReceptionistHome: undefined;
+  AddWalkIn: { branchId: string; preselectedBarberId?: string };
 };
 
 export type AdminStackParamList = {

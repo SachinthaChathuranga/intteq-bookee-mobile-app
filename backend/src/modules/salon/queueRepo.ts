@@ -62,8 +62,8 @@ interface RawQueueRow {
   }> | null;
 }
 
-function mapRawQueueRow(row: RawQueueRow): QueueEntryDetail {
-  const services: QueueEntryServiceItem[] = (row.services_json ?? []).map((s) => ({
+export function mapRawQueueRow(row: any): QueueEntryDetail {
+  const services: QueueEntryServiceItem[] = (row.services_json ?? []).map((s: any) => ({
     id: s.id,
     service_id: s.service_id,
     name: s.name,
@@ -71,8 +71,8 @@ function mapRawQueueRow(row: RawQueueRow): QueueEntryDetail {
     duration_minutes: s.duration_minutes,
   }));
 
-  const totalPrice = services.reduce((acc, s) => acc + s.price, 0);
-  const totalDuration = services.reduce((acc, s) => acc + s.duration_minutes, 0);
+  const totalPrice = services.reduce((acc: number, s: any) => acc + s.price, 0);
+  const totalDuration = services.reduce((acc: number, s: any) => acc + s.duration_minutes, 0);
 
   return {
     id: row.id,
@@ -99,7 +99,7 @@ function mapRawQueueRow(row: RawQueueRow): QueueEntryDetail {
   };
 }
 
-const SELECT_QUEUE_DETAILS = `
+export const SELECT_QUEUE_DETAILS = `
   SELECT 
     qe.*,
     bu.name AS barber_name,
