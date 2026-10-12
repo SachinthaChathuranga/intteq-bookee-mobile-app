@@ -1,12 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { logout, seedWorkspacesDev, updateMe } from '../../api/auth';
+import { fetchMe, logout, seedWorkspacesDev, updateMe } from '../../api/auth';
+import { acceptInvite } from '../../api/owner';
 import { AppText } from '../../components/AppText';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
+import { TextField } from '../../components/TextField';
 import { useT } from '../../i18n';
 import { useAuthStore, type StaffRole, type UserRole } from '../../store/authStore';
 import { useSettingsStore, type Language, type ThemePreference } from '../../store/settingsStore';
@@ -29,6 +31,27 @@ export function ProfileScreen() {
   const setActiveWorkspace = useWorkspaceStore((s) => s.setActiveWorkspace);
 
   const [devStatus, setDevStatus] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const redeemInviteMutation = useMutation({
+    mutationFn: async () => {
+      if (!inviteCode.trim() || inviteCode.trim().length !== 6) {
+        throw new Error('Please enter a 6-character invite code');
+      }
+      return await acceptInvite(inviteCode.trim().toUpperCase());
+    },
+    onSuccess: async (data) => {
+      setInviteCode('');
+      setInviteError(null);
+      const me = await fetchMe();
+      setRoles(me.roles);
+      Alert.alert(t('common.done'), `${t('barber.joinedSuccess')}\n(${data.business_name} - ${data.branch_name})`);
+    },
+    onError: (err: any) => {
+      setInviteError(err?.code ? t(`common.error.${err.code}` as any) || err.code : err.message || t('common.error.generic'));
+    },
+  });
 
   const syncSettings = useMutation({
     mutationFn: (patch: { language?: Language; theme?: ThemePreference }) => updateMe(patch),
@@ -134,6 +157,37 @@ export function ProfileScreen() {
           </View>
         </View>
       )}
+
+      {/* Redeem Barber Invite */}
+      <Card>
+        <AppText variant="body" style={{ fontWeight: '700' }}>
+          {t('barber.acceptInviteTitle')}
+        </AppText>
+        <AppText variant="caption">{t('barber.acceptInviteSubtitle')}</AppText>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <TextField
+              label=""
+              placeholder="e.g. A1B2C3"
+              autoCapitalize="characters"
+              maxLength={6}
+              value={inviteCode}
+              onChangeText={(txt) => {
+                setInviteCode(txt.toUpperCase());
+                setInviteError(null);
+              }}
+              error={inviteError}
+            />
+          </View>
+          <View style={{ paddingTop: 6 }}>
+            <Button
+              label={t('barber.acceptCode')}
+              onPress={() => redeemInviteMutation.mutate()}
+              loading={redeemInviteMutation.isPending}
+            />
+          </View>
+        </View>
+      </Card>
 
       {/* Preferences: Language */}
       <View style={styles.section}>

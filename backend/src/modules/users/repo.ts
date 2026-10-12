@@ -25,6 +25,8 @@ export interface EnrichedRoleAssignmentRow {
   business_id: string | null;
   business_name: string | null;
   business_type: string | null;
+  branch_id: string | null;
+  branch_name: string | null;
 }
 
 export async function findRolesByUserId(userId: string): Promise<EnrichedRoleAssignmentRow[]> {
@@ -34,9 +36,12 @@ export async function findRolesByUserId(userId: string): Promise<EnrichedRoleAss
        ra.role, 
        ra.business_id,
        b.name AS business_name,
-       b.type AS business_type
+       b.type AS business_type,
+       ra.branch_id,
+       br.name AS branch_name
      FROM role_assignments ra
      LEFT JOIN businesses b ON ra.business_id = b.id
+     LEFT JOIN branches br ON ra.branch_id = br.id
      WHERE ra.user_id = $1
      ORDER BY ra.created_at ASC`,
     [userId],

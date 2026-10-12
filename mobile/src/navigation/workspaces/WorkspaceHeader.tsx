@@ -8,9 +8,10 @@ import { useTheme } from '../../theme/ThemeProvider';
 
 interface Props {
   title: string;
+  onBack?: () => void;
 }
 
-export function WorkspaceHeader({ title }: Props) {
+export function WorkspaceHeader({ title, onBack }: Props) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -18,6 +19,8 @@ export function WorkspaceHeader({ title }: Props) {
   const clearWorkspace = useWorkspaceStore((s) => s.clearWorkspace);
 
   const businessName = activeWorkspace?.business_name ?? '';
+  const handleBack = onBack ?? clearWorkspace;
+  const backLabel = onBack ? `← ${t('common.back')}` : `← ${t('workspace.backToCustomer')}`;
 
   return (
     <View
@@ -33,14 +36,14 @@ export function WorkspaceHeader({ title }: Props) {
       <View style={styles.topRow}>
         <Pressable
           accessibilityRole="button"
-          onPress={clearWorkspace}
+          onPress={handleBack}
           style={({ pressed }) => [
             styles.backButton,
             { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
           ]}
         >
           <AppText style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>
-            ← {t('workspace.backToCustomer')}
+            {backLabel}
           </AppText>
         </Pressable>
 

@@ -7,6 +7,12 @@ export type CustomerTabParamList = {
 
 export type OwnerStackParamList = {
   OwnerHome: undefined;
+  BranchList: undefined;
+  BranchEdit: { branchId?: string };
+  ServiceList: undefined;
+  ServiceEdit: { serviceId?: string; branchId: string };
+  BarberList: undefined;
+  InviteBarber: { branchId: string };
 };
 
 export type BarberStackParamList = {

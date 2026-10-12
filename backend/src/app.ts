@@ -7,7 +7,9 @@ import { authRouter } from './modules/auth/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 
 import { config } from './config/index.js';
+import { ownerBranchRouter } from './modules/branch/routes.js';
 import { devRouter } from './modules/dev/routes.js';
+import { salonRouter } from './modules/salon/routes.js';
 
 export function createApp() {
   const app = express();
@@ -26,6 +28,8 @@ export function createApp() {
 
   app.use('/auth', authRouter);
   app.use('/me', usersRouter);
+  app.use('/owner', ownerBranchRouter);
+  app.use('/salon', salonRouter);
 
   if (config.NODE_ENV !== 'production') {
     app.use('/dev', devRouter);

@@ -17,6 +17,8 @@ export interface UserRole {
   business_id: string | null;
   business_name: string | null;
   business_type: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
 }
 
 const REFRESH_KEY = 'refreshToken';
