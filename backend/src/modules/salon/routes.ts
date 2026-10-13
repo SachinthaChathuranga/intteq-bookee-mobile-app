@@ -17,6 +17,7 @@ import {
   markNoShow,
   reassignQueueEntry,
   reorderQueue,
+  requestCancelQueueEntry,
 } from './queueRepo.js';
 import {
   acceptInviteByCode,
@@ -391,6 +392,41 @@ salonRouter.post('/branches/:branchId/queue/:entryId/left', async (req, res, nex
 
     broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Request customer to cancel queue entry (sends SMS via SmsService + push TODO hook)
+salonRouter.post('/branches/:branchId/queue/:entryId/request-cancel', async (req, res, next) => {
+  try {
+    const barberId = (req as unknown as AuthedRequest).userId;
+    const branchId = String(req.params.branchId);
+    const entryId = String(req.params.entryId);
+
+    const { customerPhone, barberName, customerId } = await requestCancelQueueEntry(
+      branchId,
+      entryId,
+      barberId,
+    );
+
+    const message = `Barber ${barberName || 'Kasun'} is ending his shift. Please cancel your booking or move to another barber.`;
+
+    if (customerPhone) {
+      try {
+        await smsService.sendSms(customerPhone, message);
+      } catch (smsErr) {
+        console.error('[SMS] Failed to send request-cancel SMS:', smsErr);
+      }
+    }
+
+    // TODO: Phase 1 Milestone 8: send push notification to customerId if exists
+    if (customerId) {
+      // Push notification hook placeholder
+    }
+
+    broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
+    res.json({ ok: true, sentSms: !!customerPhone });
   } catch (err) {
     next(err);
   }

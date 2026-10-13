@@ -474,3 +474,43 @@ export async function devEnqueueCustomer(
     return mapRawQueueRow(full.rows[0]!);
   });
 }
+
+export async function requestCancelQueueEntry(
+  branchId: string,
+  entryId: string,
+  actorId: string,
+  db: Queryable = pool,
+): Promise<{ customerPhone: string | null; barberName: string | null; customerId: string | null }> {
+  const { rows } = await db.query<{
+    id: string;
+    branch_id: string;
+    barber_id: string | null;
+    customer_id: string | null;
+    customer_phone: string | null;
+    barber_name: string | null;
+  }>(
+    `SELECT 
+       qe.id,
+       qe.branch_id,
+       qe.barber_id,
+       qe.customer_id,
+       cu.phone AS customer_phone,
+       bu.name AS barber_name
+     FROM salon_queue_entries qe
+     LEFT JOIN users cu ON qe.customer_id = cu.id
+     LEFT JOIN users bu ON qe.barber_id = bu.id
+     WHERE qe.id = $1 AND qe.branch_id = $2`,
+    [entryId, branchId],
+  );
+
+  if (rows.length === 0) {
+    throw new Error('QUEUE_ENTRY_NOT_FOUND');
+  }
+
+  const entry = rows[0]!;
+  return {
+    customerPhone: entry.customer_phone,
+    barberName: entry.barber_name,
+    customerId: entry.customer_id,
+  };
+}

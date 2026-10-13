@@ -228,3 +228,12 @@ export async function rescheduleBarberAppointment(appointmentId: string, startAt
   });
 }
 
+export async function requestCancelCustomer(branchId: string, entryId: string) {
+  return await apiRequest<{ ok: boolean; sentSms: boolean }>(
+    `/salon/branches/${branchId}/queue/${entryId}/request-cancel`,
+    {
+      method: 'POST',
+    },
+  );
+}
+

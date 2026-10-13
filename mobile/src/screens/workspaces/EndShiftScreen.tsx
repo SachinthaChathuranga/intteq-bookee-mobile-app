@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   autoReassignAll,
@@ -8,18 +9,24 @@ import {
   fetchCurrentShift,
   markCustomerLeft,
   reassignCustomer,
+  requestCancelCustomer,
   type QueueEntry,
 } from '../../api/barber';
 import { AppText } from '../../components/AppText';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Screen } from '../../components/Screen';
 import { useT } from '../../i18n';
 import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { BarberStackParamList } from '../../navigation/types';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import {
+  Badge,
+  Button,
+  Card,
+  Screen,
+  haptics,
+  radius,
+  spacing,
+} from '../../ui';
 import { formatCurrency } from '../../utils/format';
 
 type Props = NativeStackScreenProps<BarberStackParamList, 'EndShift'>;
@@ -65,6 +72,43 @@ export function EndShiftScreen({ route, navigation }: Props) {
       queryClient.invalidateQueries({ queryKey: ['barber-queue', branchId] });
     },
   });
+
+  const requestCancelMutation = useMutation({
+    mutationFn: (entryId: string) => requestCancelCustomer(branchId, entryId),
+    onSuccess: () => {
+      haptics.success();
+      Alert.alert(t('common.success'), t('queue.requestCancelSuccess'));
+    },
+    onError: (err: any) => {
+      haptics.medium();
+      Alert.alert(t('common.error.generic'), err?.message || t('common.error.generic'));
+    },
+  });
+
+  const handleCallCustomer = (phone: string | null) => {
+    if (!phone) {
+      Alert.alert(t('common.error.generic'), t('queue.requestCancelNoPhone'));
+      return;
+    }
+    haptics.light();
+    Linking.openURL(`tel:${phone}`).catch(() => {});
+  };
+
+  const handleRequestCancel = (customer: QueueEntry) => {
+    if (!customer.customer_phone) {
+      Alert.alert(t('common.error.generic'), t('queue.requestCancelNoPhone'));
+      return;
+    }
+    haptics.medium();
+    Alert.alert(
+      t('queue.requestCancel'),
+      t('queue.requestCancelConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.continue'), onPress: () => requestCancelMutation.mutate(customer.id) },
+      ],
+    );
+  };
 
   const endShiftMutation = useMutation({
     mutationFn: () => endShift(branchId),
@@ -144,10 +188,42 @@ export function EndShiftScreen({ route, navigation }: Props) {
                         <AppText variant="caption">
                           {customer.services.map((s) => s.name).join(', ')}
                         </AppText>
+                        {customer.customer_phone ? (
+                          <AppText variant="caption" style={{ color: colors.textMuted }}>
+                            {customer.customer_phone}
+                          </AppText>
+                        ) : null}
                       </View>
+                    </View>
+
+                    {/* Action buttons: Call, Request to Cancel, Mark Left */}
+                    <View style={styles.contactActionsRow}>
+                      {customer.customer_phone ? (
+                        <TouchableOpacity
+                          onPress={() => handleCallCustomer(customer.customer_phone)}
+                          style={[styles.actionBtn, { borderColor: colors.primary, backgroundColor: colors.surface }]}
+                        >
+                          <Ionicons name="call-outline" size={13} color={colors.primary} />
+                          <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
+                            {t('queue.callCustomer')}
+                          </AppText>
+                        </TouchableOpacity>
+                      ) : null}
+
+                      <TouchableOpacity
+                        disabled={requestCancelMutation.isPending}
+                        onPress={() => handleRequestCancel(customer)}
+                        style={[styles.actionBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                      >
+                        <Ionicons name="mail-outline" size={13} color={colors.text} />
+                        <AppText variant="caption" style={{ color: colors.text, fontWeight: '600' }}>
+                          {t('queue.requestCancel')}
+                        </AppText>
+                      </TouchableOpacity>
+
                       <TouchableOpacity
                         onPress={() => markLeftMutation.mutate(customer.id)}
-                        style={[styles.leftBtn, { borderColor: colors.danger }]}
+                        style={[styles.actionBtn, { borderColor: colors.danger, backgroundColor: colors.surface }]}
                       >
                         <AppText variant="caption" style={{ color: colors.danger, fontWeight: '600' }}>
                           {t('queue.customerLeft')}
@@ -270,5 +346,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
+  },
+  contactActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
 });

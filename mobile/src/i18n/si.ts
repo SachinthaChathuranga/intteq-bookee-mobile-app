@@ -261,6 +261,11 @@ export const si: Translations = {
   'queue.reassignSubtitle': 'සේවයේ සිටින වෙනත් බාබර්වරයෙකු තෝරන්න',
   'queue.autoReassignAll': 'සියල්ලන්ම ස්වයංක්‍රීයව පවරන්න',
   'queue.customerLeft': 'පාරිභෝගිකයා පිටව ගියේය',
+  'queue.callCustomer': 'අමතන්න',
+  'queue.requestCancel': 'අවලංගු කිරීමට ඉල්ලන්න',
+  'queue.requestCancelSuccess': 'අවලංගු කිරීමේ ඉල්ලීම පාරිභෝගිකයා වෙත යවන ලදී!',
+  'queue.requestCancelConfirm': 'පෝලිම් ඇතුළත් කිරීම අවලංගු කරන ලෙස පාරිභෝගිකයාගෙන් ඉල්ලන්නද?',
+  'queue.requestCancelNoPhone': 'මෙම පාරිභෝගිකයාට දුරකථන අංකයක් නොමැත.',
   'queue.moveUp': 'ඉහළට ගෙනයන්න',
   'queue.moveDown': 'පහළට ගෙනයන්න',
 

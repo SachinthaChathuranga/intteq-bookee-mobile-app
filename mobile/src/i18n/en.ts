@@ -260,6 +260,11 @@ export const en = {
   'queue.reassignSubtitle': 'Choose another on-shift barber',
   'queue.autoReassignAll': 'Auto-Reassign All',
   'queue.customerLeft': 'Customer Left',
+  'queue.callCustomer': 'Call',
+  'queue.requestCancel': 'Request to cancel',
+  'queue.requestCancelSuccess': 'Cancellation request sent to customer!',
+  'queue.requestCancelConfirm': 'Ask customer to cancel their queue entry?',
+  'queue.requestCancelNoPhone': 'This customer has no phone number.',
   'queue.moveUp': 'Move Up',
   'queue.moveDown': 'Move Down',
 

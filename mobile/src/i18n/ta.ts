@@ -261,6 +261,11 @@ export const ta: Translations = {
   'queue.reassignSubtitle': 'பணியில் உள்ள மற்றொரு பார்பரைத் தேர்ந்தெடுக்கவும்',
   'queue.autoReassignAll': 'அனைவரையும் தானாக மீண்டும் ஒதுக்குங்கள்',
   'queue.customerLeft': 'வாடிக்கையாளர் சென்றுவிட்டார்',
+  'queue.callCustomer': 'அழைக்கவும்',
+  'queue.requestCancel': 'ரத்துசெய்யக் கோருங்கள்',
+  'queue.requestCancelSuccess': 'ரத்துசெய்யும் கோரிக்கை வாடிக்கையாளருக்கு அனுப்பப்பட்டது!',
+  'queue.requestCancelConfirm': 'வரிசைப் பதிவை ரத்து செய்யும்படி வாடிக்கையாளரிடம் கேட்கவா?',
+  'queue.requestCancelNoPhone': 'இந்த வாடிக்கையாளருக்கு தொலைபேசி எண் இல்லை.',
   'queue.moveUp': 'மேலே நகர்த்து',
   'queue.moveDown': 'கீழே நகர்த்து',
 

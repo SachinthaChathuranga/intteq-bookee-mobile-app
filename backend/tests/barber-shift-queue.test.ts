@@ -271,4 +271,35 @@ describe('Milestone 4: Barber Shifts & Queue System', () => {
 
     expect(noShowRes.status).toBe(200);
   });
+
+  it('13. Barber end shift: request cancel sends SMS to customer with phone', async () => {
+    // Enqueue customer
+    const enq = await request(app)
+      .post(`/salon/branches/${branchId}/queue/dev-enqueue`)
+      .set('Authorization', `Bearer ${barber1Token}`)
+      .send({
+        customerName: 'Test Waiting Customer',
+        barberId: barber1Id,
+        serviceIds: [haircutServiceId],
+      });
+    expect(enq.status).toBe(201);
+    const entryId = enq.body.entry.id;
+
+    // Attach customer user with phone to this entry
+    const custRes = await pool.query<{ id: string }>(
+      "INSERT INTO users (phone, name) VALUES ('94770000099', 'Customer Phone') RETURNING id",
+    );
+    await pool.query('UPDATE salon_queue_entries SET customer_id = $1 WHERE id = $2', [
+      custRes.rows[0]!.id,
+      entryId,
+    ]);
+
+    const cancelReq = await request(app)
+      .post(`/salon/branches/${branchId}/queue/${entryId}/request-cancel`)
+      .set('Authorization', `Bearer ${barber1Token}`);
+
+    expect(cancelReq.status).toBe(200);
+    expect(cancelReq.body.ok).toBe(true);
+    expect(cancelReq.body.sentSms).toBe(true);
+  });
 });
