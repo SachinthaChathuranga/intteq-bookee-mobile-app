@@ -17,6 +17,7 @@ export type CustomerStackParamList = {
 
 export type OwnerTabParamList = {
   OwnerHome: undefined;
+  LiveFloor: undefined;
   BranchList: undefined;
   ServiceList: undefined;
   BarberList: undefined;
@@ -26,6 +27,7 @@ export type OwnerTabParamList = {
 export type OwnerStackParamList = {
   OwnerTabs: undefined;
   OwnerHome: undefined;
+  LiveFloor: undefined;
   BranchList: undefined;
   BranchEdit: { branchId?: string };
   ServiceList: undefined;

@@ -7,6 +7,7 @@ import { BranchEditScreen } from '../../screens/workspaces/BranchEditScreen';
 import { BranchListScreen } from '../../screens/workspaces/BranchListScreen';
 import { InviteBarberScreen } from '../../screens/workspaces/InviteBarberScreen';
 import { OwnerHomeScreen } from '../../screens/workspaces/OwnerHomeScreen';
+import { OwnerLiveFloorScreen } from '../../screens/workspaces/OwnerLiveFloorScreen';
 import { ServiceEditScreen } from '../../screens/workspaces/ServiceEditScreen';
 import { ServiceListScreen } from '../../screens/workspaces/ServiceListScreen';
 import { useWorkspaceStore } from '../../store/workspaceStore';
@@ -50,6 +51,16 @@ function OwnerTabNavigator() {
           tabBarLabel: t('nav.overview'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="briefcase-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="LiveFloor"
+        component={OwnerLiveFloorScreen as any}
+        options={{
+          tabBarLabel: t('nav.floor'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="layers-outline" size={size} color={color} />
           ),
         }}
       />
