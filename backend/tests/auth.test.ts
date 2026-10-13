@@ -30,6 +30,7 @@ async function login() {
 beforeEach(async () => {
   sent.length = 0;
   await pool.query('DELETE FROM salon_transactions');
+  await pool.query('DELETE FROM salon_appointments');
   await pool.query('DELETE FROM salon_queue_entries');
   await pool.query('DELETE FROM salon_shifts');
   await pool.query('DELETE FROM refresh_tokens');

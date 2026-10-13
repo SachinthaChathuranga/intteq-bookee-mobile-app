@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import { bootstrapAuth } from '../store/bootstrap';
 import { useSettingsStore } from '../store/settingsStore';
 import { useWorkspaceStore } from '../store/workspaceStore';
-import { CustomerTabNavigator } from './CustomerTabNavigator';
+import { CustomerNavigator } from './CustomerNavigator';
 import type { RootStackParamList } from './types';
 import { AdminNavigator } from './workspaces/AdminNavigator';
 import { BarberNavigator } from './workspaces/BarberNavigator';
@@ -51,7 +51,7 @@ export function RootNavigator() {
       ) : activeWorkspace?.role === 'SUPER_ADMIN' ? (
         <Stack.Screen name="AdminApp" component={AdminNavigator} />
       ) : (
-        <Stack.Screen name="CustomerApp" component={CustomerTabNavigator} />
+        <Stack.Screen name="CustomerApp" component={CustomerNavigator} />
       )}
     </Stack.Navigator>
   );

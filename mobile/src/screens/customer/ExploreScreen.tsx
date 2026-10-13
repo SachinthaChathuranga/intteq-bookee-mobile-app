@@ -29,7 +29,13 @@ const SALON_IMAGE_COVERS = [
   'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=80',
 ];
 
-export function ExploreScreen() {
+interface Props {
+  navigation: {
+    navigate: (screen: string, params?: any) => void;
+  };
+}
+
+export function ExploreScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
 
@@ -167,6 +173,10 @@ export function ExploreScreen() {
                   />
                 </Pressable>
               }
+              onPress={() => {
+                haptics.light();
+                navigation.navigate('Booking', { branchId: salon.id, initialStep: 1 });
+              }}
               style={styles.salonCard}
             >
               <View style={styles.cardHeader}>

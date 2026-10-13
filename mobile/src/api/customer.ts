@@ -50,3 +50,180 @@ export async function fetchSalons(params: SalonSearchParams = {}) {
 
   return await apiRequest<{ salons: SalonSearchResult[] }>(endpoint);
 }
+
+export interface BranchService {
+  id: string;
+  branch_id: string;
+  name: string;
+  price: number;
+  duration_minutes: number;
+  is_active: boolean;
+}
+
+export interface BranchBarber {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  avg_rating: string;
+  rating_count: number;
+  is_working_today: boolean;
+  offered_service_ids: string[];
+}
+
+export interface FeaturedBarber {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  avg_rating: string;
+  rating_count: number;
+  branch_id: string;
+  branch_name: string;
+  business_name: string;
+}
+
+export interface BarberTodayBranch {
+  branch_id: string;
+  branch_name: string;
+  business_name: string;
+  is_on_shift_today: boolean;
+  address: string;
+}
+
+export interface SlotAvailability {
+  time: string;
+  start_at: string;
+  end_at: string;
+  available: boolean;
+}
+
+export interface BranchAvailabilityResult {
+  date: string;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
+  total_duration_minutes: number;
+  total_price: number;
+  now_available: boolean;
+  slots: SlotAvailability[];
+  candidate_barbers_count: number;
+}
+
+export interface CreateAppointmentPayload {
+  barberId?: string | null;
+  serviceIds: string[];
+  startAt: string;
+  bookingMode: 'SPECIFIC' | 'ANY';
+  notes?: string;
+}
+
+export interface AppointmentResult {
+  id: string;
+  branch_id: string;
+  barber_id: string;
+  barber_name: string;
+  barber_avatar: string | null;
+  customer_id: string;
+  booking_mode: 'SPECIFIC' | 'ANY';
+  start_at: string;
+  end_at: string;
+  status: string;
+  total_price: number;
+  total_duration_minutes: number;
+  services: {
+    id: string;
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }[];
+}
+
+export interface QueueJoinResult {
+  entry_id: string;
+  token: string;
+  queue_type: 'BARBER' | 'GENERAL';
+  barber_id: string | null;
+  estimated_wait_minutes: number;
+}
+
+export async function fetchBranchServices(branchId: string) {
+  return await apiRequest<{ services: BranchService[] }>(`/salon/branches/${branchId}/services`);
+}
+
+export async function fetchBranchBarbers(branchId: string) {
+  return await apiRequest<{ barbers: BranchBarber[] }>(`/salon/branches/${branchId}/barbers-list`);
+}
+
+export async function fetchBarbers() {
+  return await apiRequest<{ barbers: FeaturedBarber[] }>('/salon/barbers');
+}
+
+export async function fetchBarberTodayBranch(barberId: string) {
+  return await apiRequest<BarberTodayBranch>(`/salon/barbers/${barberId}/today-branch`);
+}
+
+export async function fetchBranchAvailability(
+  branchId: string,
+  date: string,
+  serviceIds: string[],
+  barberId?: string | null,
+) {
+  const query = new URLSearchParams({ date });
+  if (serviceIds.length > 0) {
+    query.set('serviceIds', serviceIds.join(','));
+  }
+  if (barberId) {
+    query.set('barberId', barberId);
+  }
+  return await apiRequest<BranchAvailabilityResult>(
+    `/salon/branches/${branchId}/availability?${query.toString()}`,
+  );
+}
+
+export async function createCustomerAppointment(
+  branchId: string,
+  payload: CreateAppointmentPayload,
+) {
+  return await apiRequest<{ appointment: AppointmentResult }>(
+    `/salon/branches/${branchId}/appointments`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
+}
+
+export async function joinCustomerQueue(
+  branchId: string,
+  payload: { barberId?: string | null; serviceIds: string[] },
+) {
+  return await apiRequest<QueueJoinResult>(`/salon/branches/${branchId}/queue/join`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export interface CustomerBookedAppointment {
+  id: string;
+  branch_id: string;
+  branch_name: string;
+  business_name: string;
+  barber_id: string;
+  barber_name: string;
+  barber_avatar: string | null;
+  start_at: string;
+  end_at: string;
+  status: string;
+  total_price: number;
+  total_duration_minutes: number;
+  services: {
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }[];
+}
+
+export async function fetchCustomerAppointments() {
+  return await apiRequest<{ appointments: CustomerBookedAppointment[] }>(
+    '/salon/customer/appointments',
+  );
+}

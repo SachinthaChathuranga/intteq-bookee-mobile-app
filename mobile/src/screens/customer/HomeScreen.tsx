@@ -12,7 +12,12 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { fetchSalons, type SalonSearchResult } from '../../api/customer';
+import {
+  fetchBarbers,
+  fetchSalons,
+  type FeaturedBarber,
+  type SalonSearchResult,
+} from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
@@ -64,7 +69,15 @@ export function HomeScreen({ navigation }: Props) {
     queryFn: () => fetchSalons(),
   });
 
+  const barbersQuery = useQuery({
+    queryKey: ['customer-barbers'],
+    queryFn: () => fetchBarbers(),
+  });
+
   const salons = salonsQuery.data?.salons ?? [];
+  const barbers = barbersQuery.data?.barbers?.length
+    ? barbersQuery.data.barbers
+    : MOCK_BARBERS;
 
   const toggleFavorite = (id: string) => {
     haptics.light();
@@ -178,7 +191,7 @@ export function HomeScreen({ navigation }: Props) {
                 }
                 onPress={() => {
                   haptics.light();
-                  navigation.navigate('Explore');
+                  navigation.navigate('Booking', { branchId: item.id, initialStep: 1 });
                 }}
                 style={[styles.featuredCard, { width: CAROUSEL_CARD_WIDTH }]}
               >
@@ -232,12 +245,16 @@ export function HomeScreen({ navigation }: Props) {
 
       {/* 7. Barber Horizontal Cards */}
       <View style={{ gap: spacing.md }}>
-        {MOCK_BARBERS.map((barber) => (
+        {barbers.map((barber) => (
           <Card
             key={barber.id}
             onPress={() => {
               haptics.light();
-              navigation.navigate('Explore');
+              navigation.navigate('Booking', {
+                preselectedBarberId: barber.id,
+                branchId: (barber as any).branch_id || undefined,
+                initialStep: 2,
+              });
             }}
             style={styles.barberRowCard}
           >
@@ -251,13 +268,16 @@ export function HomeScreen({ navigation }: Props) {
                 <View style={styles.barberSalonRow}>
                   <Ionicons name="cut-outline" size={14} color={colors.textMuted} />
                   <AppText variant="caption" style={{ color: colors.textMuted }}>
-                    {barber.salon}
+                    {(barber as any).salon ||
+                      `${(barber as any).business_name || ''} - ${(barber as any).branch_name || ''}`}
                   </AppText>
                 </View>
               </View>
 
               <View style={styles.barberTrailing}>
-                <RatingBadge rating={barber.rating} />
+                <RatingBadge
+                  rating={(barber as any).rating ?? (barber as any).avg_rating ?? '4.8'}
+                />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <Ionicons name="heart-outline" size={18} color={colors.textMuted} />
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -306,7 +326,7 @@ export function HomeScreen({ navigation }: Props) {
           }
           onPress={() => {
             haptics.light();
-            navigation.navigate('Explore');
+            navigation.navigate('Booking', { branchId: item.id, initialStep: 1 });
           }}
           style={styles.verticalSalonCard}
         >

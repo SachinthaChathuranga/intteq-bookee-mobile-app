@@ -4,8 +4,9 @@ import { config } from '../../config/index.js';
 import { HttpError, requireAuth, validateBody, type AuthedRequest } from '../../middleware/index.js';
 import { broadcastBranchEvent } from '../../realtime/ws.js';
 import { smsService } from '../../services/sms/index.js';
+import { pool } from '../../db/pool.js';
 import { normalizePhone } from '../../utils/phone.js';
-import { findBranchById, isBranchOwnedByUser } from '../branch/repo.js';
+import { findBranchById, findServicesByBranchId, isBranchOwnedByUser } from '../branch/repo.js';
 import {
   autoReassignAll,
   callNext,
@@ -37,6 +38,14 @@ import {
 import { assignGeneralQueueEntry, getBranchLiveFloor } from './liveFloorRepo.js';
 import { searchSalonBranches } from './searchRepo.js';
 import { calculateWaitTimes, createWalkIn } from './walkInRepo.js';
+import {
+  createAppointment,
+  getBarberTodayBranch,
+  getBranchAvailability,
+  getBranchBarbersForCustomer,
+  getCustomerAppointments,
+  joinCustomerLiveQueue,
+} from './appointmentRepo.js';
 
 export const salonRouter = Router();
 salonRouter.use(requireAuth);
@@ -544,4 +553,164 @@ salonRouter.get('/branches', async (req, res, next) => {
     next(err);
   }
 });
+
+const createAppointmentSchema = z.object({
+  barberId: z.string().uuid().optional().nullable(),
+  serviceIds: z.array(z.string().uuid()).min(1),
+  startAt: z.string(),
+  bookingMode: z.enum(['SPECIFIC', 'ANY']),
+  notes: z.string().optional(),
+});
+
+const customerJoinQueueSchema = z.object({
+  barberId: z.string().uuid().optional().nullable(),
+  serviceIds: z.array(z.string().uuid()).min(1),
+});
+
+// Check Available Slots for Date & Services
+salonRouter.get('/branches/:branchId/availability', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const date = String(req.query.date || '');
+    if (!date) throw new HttpError(400, 'DATE_REQUIRED');
+
+    const serviceIdsParam = req.query.serviceIds;
+    let serviceIds: string[] = [];
+    if (typeof serviceIdsParam === 'string') {
+      serviceIds = serviceIdsParam.split(',').filter(Boolean);
+    } else if (Array.isArray(serviceIdsParam)) {
+      serviceIds = serviceIdsParam.map(String).filter(Boolean);
+    }
+
+    const barberId =
+      typeof req.query.barberId === 'string' && req.query.barberId ? req.query.barberId : undefined;
+
+    const availability = await getBranchAvailability(branchId, date, serviceIds, barberId);
+    res.json(availability);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Book Appointment (Instant Confirmation with Double-booking prevention)
+salonRouter.post(
+  '/branches/:branchId/appointments',
+  validateBody(createAppointmentSchema),
+  async (req, res, next) => {
+    try {
+      const branchId = String(req.params.branchId);
+      const userId = (req as unknown as AuthedRequest).userId;
+      const appointment = await createAppointment({
+        branchId,
+        customerId: userId,
+        barberId: req.body.barberId,
+        serviceIds: req.body.serviceIds,
+        startAt: req.body.startAt,
+        bookingMode: req.body.bookingMode,
+        notes: req.body.notes,
+      });
+
+      broadcastBranchEvent(branchId, { type: 'APPOINTMENT_CREATED' });
+      res.status(201).json({ appointment });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// App Customer Join Live Queue ("Now — join queue")
+salonRouter.post(
+  '/branches/:branchId/queue/join',
+  validateBody(customerJoinQueueSchema),
+  async (req, res, next) => {
+    try {
+      const branchId = String(req.params.branchId);
+      const userId = (req as unknown as AuthedRequest).userId;
+      const result = await joinCustomerLiveQueue(
+        branchId,
+        userId,
+        req.body.serviceIds,
+        req.body.barberId,
+      );
+
+      broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Customer: List active barbers across system (for favorite/featured barbers)
+salonRouter.get('/barbers', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT ON (u.id)
+        u.id,
+        u.name,
+        u.avatar_url,
+        COALESCE(bp.avg_rating, 5.00)::text AS avg_rating,
+        COALESCE(bp.rating_count, 0) AS rating_count,
+        b.id AS branch_id,
+        b.name AS branch_name,
+        biz.name AS business_name
+      FROM users u
+      JOIN barber_branches bb ON u.id = bb.barber_id
+      JOIN branches b ON bb.branch_id = b.id
+      JOIN businesses biz ON b.business_id = biz.id
+      LEFT JOIN barber_profiles bp ON u.id = bp.user_id
+      WHERE bb.is_active = true
+      ORDER BY u.id, bb.created_at ASC
+    `);
+    res.json({ barbers: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Barber's branch today (for barber card entry point)
+salonRouter.get('/barbers/:barberId/today-branch', async (req, res, next) => {
+  try {
+    const barberId = String(req.params.barberId);
+    const branchInfo = await getBarberTodayBranch(barberId);
+    if (!branchInfo) throw new HttpError(404, 'BARBER_BRANCH_NOT_FOUND');
+    res.json(branchInfo);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer: List active services for a branch
+salonRouter.get('/branches/:branchId/services', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const services = await findServicesByBranchId(branchId, true);
+    res.json({ services });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer: List active barbers with today's shift status and offered services
+salonRouter.get('/branches/:branchId/barbers-list', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const barbers = await getBranchBarbersForCustomer(branchId);
+    res.json({ barbers });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer: List own booked appointments
+salonRouter.get('/customer/appointments', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const appointments = await getCustomerAppointments(userId);
+    res.json({ appointments });
+  } catch (err) {
+    next(err);
+  }
+});
+
 

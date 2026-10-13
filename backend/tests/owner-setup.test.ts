@@ -43,6 +43,7 @@ beforeEach(async () => {
   await pool.query('DELETE FROM barber_services');
   await pool.query('DELETE FROM barber_branches');
   await pool.query('DELETE FROM barber_profiles');
+  await pool.query('DELETE FROM salon_appointments');
   await pool.query('DELETE FROM services');
   await pool.query('DELETE FROM working_hours');
   await pool.query('DELETE FROM role_assignments');

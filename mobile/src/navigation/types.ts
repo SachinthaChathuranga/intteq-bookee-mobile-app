@@ -5,6 +5,15 @@ export type CustomerTabParamList = {
   Profile: undefined;
 };
 
+export type CustomerStackParamList = {
+  CustomerTabs: { screen?: keyof CustomerTabParamList } | undefined;
+  Booking: {
+    branchId?: string;
+    preselectedBarberId?: string;
+    initialStep?: 1 | 2;
+  };
+};
+
 export type OwnerTabParamList = {
   OwnerHome: undefined;
   BranchList: undefined;
