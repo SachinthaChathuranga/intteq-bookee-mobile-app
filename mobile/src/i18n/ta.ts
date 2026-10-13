@@ -82,6 +82,7 @@ export const ta: Translations = {
   'home.findSalonSubtitle': 'சிறந்த சேவைக்காக உங்கள் விருப்பமான பார்பரைத் தேர்ந்தெடுக்கவும்',
   'home.availableBarbers': 'கிடைக்கும் பார்பர்கள்',
   'home.barbersCount': '{count} பார்பர்கள்',
+  'home.allSalons': 'அனைத்து சலூன்களும்',
 
   'walkin.stepProgress': 'படி {current} / {total}',
   'walkin.stepBarber': 'பார்பர்',

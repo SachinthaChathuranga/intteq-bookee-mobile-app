@@ -82,6 +82,7 @@ export const si: Translations = {
   'home.findSalonSubtitle': 'විශිෂ්ට සේවාවක් සඳහා ඔබේ ප්‍රියතම බාබර් තෝරාගන්න',
   'home.availableBarbers': 'පවතින බාබර්වරු',
   'home.barbersCount': 'බාබර්වරු {count}ක්',
+  'home.allSalons': 'සියලුම සැලූන්',
 
   'walkin.stepProgress': 'පියවර {current} / {total}',
   'walkin.stepBarber': 'බාබර්',

@@ -81,6 +81,7 @@ export const en = {
   'home.findSalonSubtitle': 'Book your favorite barber for the perfect grooming experience',
   'home.availableBarbers': 'Available Barbers',
   'home.barbersCount': '{count} barbers',
+  'home.allSalons': 'All Salons',
 
   'walkin.stepProgress': 'Step {current} of {total}',
   'walkin.stepBarber': 'Barber',
