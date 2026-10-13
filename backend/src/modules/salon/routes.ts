@@ -43,8 +43,10 @@ import {
   getBarberTodayBranch,
   getBranchAvailability,
   getBranchBarbersForCustomer,
+  findCustomerActiveQueue,
   getCustomerAppointments,
   joinCustomerLiveQueue,
+  leaveCustomerQueue,
 } from './appointmentRepo.js';
 
 export const salonRouter = Router();
@@ -712,5 +714,31 @@ salonRouter.get('/customer/appointments', async (req, res, next) => {
     next(err);
   }
 });
+
+// Customer: Get active live queue entry (for Wait Screen and Home card)
+salonRouter.get('/customer/active-queue', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const activeQueue = await findCustomerActiveQueue(userId);
+    res.json({ activeQueue });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer: Leave queue before being called
+salonRouter.post('/customer/queue/leave', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const result = await leaveCustomerQueue(userId);
+    if (result) {
+      broadcastBranchEvent(result.branch_id, { type: 'QUEUE_UPDATED' });
+    }
+    res.json({ success: true, left: Boolean(result) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 

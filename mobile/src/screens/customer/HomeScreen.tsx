@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import {
   fetchBarbers,
+  fetchCustomerActiveQueue,
   fetchSalons,
   type FeaturedBarber,
   type SalonSearchResult,
 } from '../../api/customer';
+import { useQueueSocket } from '../../api/socket';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
@@ -63,6 +65,15 @@ export function HomeScreen({ navigation }: Props) {
 
   const [favoriteSalons, setFavoriteSalons] = useState<Record<string, boolean>>({});
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+
+  const activeQueueQuery = useQuery({
+    queryKey: ['customer-active-queue'],
+    queryFn: fetchCustomerActiveQueue,
+    refetchInterval: 5000,
+  });
+
+  const activeQueue = activeQueueQuery.data;
+  useQueueSocket(activeQueue?.branch_id);
 
   const salonsQuery = useQuery({
     queryKey: ['customer-salons'],
@@ -110,6 +121,49 @@ export function HomeScreen({ navigation }: Props) {
           </AppText>
         </View>
       </View>
+
+      {/* In-Queue Live Card (SPEC §4.4) */}
+      {activeQueue && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            haptics.light();
+            navigation.navigate('CustomerWait');
+          }}
+          style={[
+            styles.inQueueCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.primaryBorder,
+            },
+          ]}
+        >
+          <View style={styles.inQueueTopRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Badge label={activeQueue.token_number ?? 'Token'} variant="primary" />
+              <Badge
+                label={t('waitScreen.position', { position: activeQueue.position })}
+                variant="neutral"
+              />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
+                {t('waitScreen.inQueueCardView')}
+              </AppText>
+              <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            </View>
+          </View>
+
+          <View style={{ gap: 2, marginTop: 4 }}>
+            <AppText variant="bodyBold" style={{ fontSize: 15 }}>
+              {activeQueue.branch_name}
+            </AppText>
+            <AppText variant="caption" style={{ color: colors.textMuted }}>
+              {activeQueue.barber_name ? `${t('waitScreen.barber')}: ${activeQueue.barber_name}` : t('waitScreen.anyBarber')} • {activeQueue.people_ahead === 0 ? t('waitScreen.youAreNext') : t('waitScreen.peopleAhead', { count: activeQueue.people_ahead })} • {t('waitScreen.estimatedWait', { minutes: activeQueue.estimated_wait_minutes })}
+            </AppText>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* 2. Hero Headline (Centered, Friendly) */}
       <View style={styles.heroSection}>
@@ -423,6 +477,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     marginTop: spacing.xs,
+  },
+  inQueueCard: {
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    gap: spacing.xs,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  inQueueTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   topBarText: {
     gap: 1,

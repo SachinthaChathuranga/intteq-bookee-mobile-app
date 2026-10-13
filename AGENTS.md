@@ -24,6 +24,20 @@
    - Generic code uses `Business` / `Branch`, not `Salon`.
    - Don't add salon-specific assumptions to shared code.
 
+## Definition of Done
+
+A feature is done only when all of these exist and work:
+1. **DB migration** (if data is stored)
+2. **Backend route** with proper authentication and role checks
+3. **Mobile screen wired to the real API** (no mock data, no placeholder screens)
+4. **i18n strings** in `en.ts`, `si.ts`, and `ta.ts` (with exact key parity)
+5. **Verified working** when tested on a phone with the development seed accounts
+
+At the end of every task:
+- List all files changed.
+- For each SPEC item touched, report ✅ / 🟡 / ❌ honestly.
+- Never report a milestone as done if any part is stubbed, mocked, or placeholder.
+
 ## Related conventions from SPEC.md
 
 - App name/slug/support contact come only from `src/config/app.ts` (backend: env/config) — never hard-code them.

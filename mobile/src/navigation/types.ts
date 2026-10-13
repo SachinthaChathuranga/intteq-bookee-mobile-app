@@ -12,6 +12,7 @@ export type CustomerStackParamList = {
     preselectedBarberId?: string;
     initialStep?: 1 | 2;
   };
+  CustomerWait: undefined;
 };
 
 export type OwnerTabParamList = {

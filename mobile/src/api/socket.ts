@@ -42,6 +42,8 @@ export function useQueueSocket(branchId: string | null | undefined) {
               } else if (data.type === 'QUEUE_UPDATED') {
                 queryClient.invalidateQueries({ queryKey: ['barber-queue', branchId] });
                 queryClient.invalidateQueries({ queryKey: ['barber-shift', branchId] });
+                queryClient.invalidateQueries({ queryKey: ['live-floor', branchId] });
+                queryClient.invalidateQueries({ queryKey: ['customer-active-queue'] });
               }
             }
           } catch {

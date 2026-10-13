@@ -1047,7 +1047,7 @@ export function BookingScreen({ navigation, route }: Props) {
                 label={t('booking.done')}
                 onPress={() => {
                   setQueueToken(null);
-                  navigation.goBack();
+                  navigation.navigate('CustomerWait');
                 }}
                 style={{ width: '100%', marginTop: spacing.md }}
               />

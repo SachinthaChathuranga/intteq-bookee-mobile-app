@@ -1,7 +1,7 @@
 import type { Queryable } from '../../db/pool.js';
 import { pool, withTransaction } from '../../db/pool.js';
 import { HttpError } from '../../middleware/index.js';
-import { nextBranchToken } from './walkInRepo.js';
+import { calculateWaitTimes, nextBranchToken } from './walkInRepo.js';
 
 export interface SlotAvailability {
   time: string; // 'HH:mm' in Asia/Colombo
@@ -714,3 +714,185 @@ export async function getCustomerAppointments(
     services: typeof r.services === 'string' ? JSON.parse(r.services) : r.services,
   }));
 }
+
+export interface CustomerActiveQueueDetail {
+  id: string;
+  branch_id: string;
+  branch_name: string;
+  branch_address: string;
+  business_name: string;
+  queue_type: 'BARBER' | 'GENERAL';
+  barber_id: string | null;
+  barber_name: string | null;
+  barber_avatar: string | null;
+  token_number: string | null;
+  status: 'WAITING' | 'CALLED' | 'IN_SERVICE';
+  position: number;
+  people_ahead: number;
+  estimated_wait_minutes: number;
+  joined_at: string;
+  services: Array<{
+    id: string;
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }>;
+  total_price: number;
+  total_duration_minutes: number;
+}
+
+export async function findCustomerActiveQueue(
+  customerId: string,
+  db: Queryable = pool,
+): Promise<CustomerActiveQueueDetail | null> {
+  const { rows } = await db.query<any>(
+    `SELECT 
+       qe.id,
+       qe.branch_id,
+       qe.queue_type,
+       qe.barber_id,
+       bu.name AS barber_name,
+       bu.avatar_url AS barber_avatar,
+       qe.token_number,
+       qe.status,
+       qe.joined_at,
+       b.name AS branch_name,
+       b.address AS branch_address,
+       biz.name AS business_name,
+       COALESCE(
+         (SELECT json_agg(json_build_object('id', s.id, 'name', s.name, 'price', qes.price, 'duration_minutes', qes.duration_minutes))
+          FROM salon_queue_entry_services qes
+          JOIN services s ON qes.service_id = s.id
+          WHERE qes.queue_entry_id = qe.id),
+         '[]'::json
+       ) AS services
+     FROM salon_queue_entries qe
+     JOIN branches b ON qe.branch_id = b.id
+     JOIN businesses biz ON b.business_id = biz.id
+     LEFT JOIN users bu ON qe.barber_id = bu.id
+     WHERE qe.customer_id = $1
+       AND qe.status IN ('WAITING', 'CALLED', 'IN_SERVICE')
+     ORDER BY qe.joined_at DESC
+     LIMIT 1`,
+    [customerId],
+  );
+
+  if (rows.length === 0) return null;
+
+  const row = rows[0];
+  const rawServices = typeof row.services === 'string' ? JSON.parse(row.services) : (row.services ?? []);
+  const services = rawServices.map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    price: typeof s.price === 'string' ? parseFloat(s.price) : Number(s.price),
+    duration_minutes: Number(s.duration_minutes),
+  }));
+  const totalPrice = services.reduce((sum: number, s: any) => sum + s.price, 0);
+  const totalDuration = services.reduce((sum: number, s: any) => sum + s.duration_minutes, 0);
+
+  let addressStr = '';
+  if (typeof row.branch_address === 'string') {
+    try {
+      const parsed = JSON.parse(row.branch_address);
+      addressStr = parsed.address || row.branch_address;
+    } catch {
+      addressStr = row.branch_address;
+    }
+  } else if (row.branch_address && typeof row.branch_address === 'object') {
+    addressStr = row.branch_address.address || '';
+  }
+
+  let position = 1;
+  let peopleAhead = 0;
+  let estimatedWait = 0;
+
+  if (row.status === 'CALLED' || row.status === 'IN_SERVICE') {
+    position = 1;
+    peopleAhead = 0;
+    estimatedWait = 0;
+  } else if (row.status === 'WAITING') {
+    if (row.queue_type === 'BARBER' && row.barber_id) {
+      const { rows: aheadRows } = await db.query<{ ahead_count: string; ahead_duration: string }>(
+        `SELECT 
+           count(*)::text AS ahead_count,
+           coalesce(sum(qes.duration_minutes), 0)::text AS ahead_duration
+         FROM salon_queue_entries qe
+         JOIN salon_queue_entry_services qes ON qe.id = qes.queue_entry_id
+         WHERE qe.branch_id = $1
+           AND qe.barber_id = $2
+           AND qe.status = 'WAITING'
+           AND (qe.joined_at < $3 OR (qe.joined_at = $3 AND qe.id < $4))`,
+        [row.branch_id, row.barber_id, row.joined_at, row.id],
+      );
+      const aheadCount = parseInt(aheadRows[0]?.ahead_count ?? '0', 10);
+      const aheadDuration = parseInt(aheadRows[0]?.ahead_duration ?? '0', 10);
+
+      const { rows: servingRows } = await db.query<{ serving_duration: string }>(
+        `SELECT coalesce(sum(qes.duration_minutes), 0)::text AS serving_duration
+         FROM salon_queue_entries qe
+         JOIN salon_queue_entry_services qes ON qe.id = qes.queue_entry_id
+         WHERE qe.branch_id = $1
+           AND qe.barber_id = $2
+           AND qe.status IN ('CALLED', 'IN_SERVICE')`,
+        [row.branch_id, row.barber_id],
+      );
+      const servingDuration = parseInt(servingRows[0]?.serving_duration ?? '0', 10);
+
+      peopleAhead = aheadCount;
+      position = aheadCount + 1;
+      estimatedWait = aheadDuration + servingDuration;
+    } else {
+      // GENERAL queue
+      const { rows: aheadRows } = await db.query<{ ahead_count: string }>(
+        `SELECT count(*)::text AS ahead_count
+         FROM salon_queue_entries qe
+         WHERE qe.branch_id = $1
+           AND qe.queue_type = 'GENERAL'
+           AND qe.status = 'WAITING'
+           AND (qe.joined_at < $2 OR (qe.joined_at = $2 AND qe.id < $3))`,
+        [row.branch_id, row.joined_at, row.id],
+      );
+      peopleAhead = parseInt(aheadRows[0]?.ahead_count ?? '0', 10);
+      position = peopleAhead + 1;
+
+      const waitSummary = await calculateWaitTimes(row.branch_id, db);
+      estimatedWait = waitSummary.general_wait_minutes;
+    }
+  }
+
+  return {
+    id: row.id,
+    branch_id: row.branch_id,
+    branch_name: row.branch_name,
+    branch_address: addressStr,
+    business_name: row.business_name,
+    queue_type: row.queue_type,
+    barber_id: row.barber_id,
+    barber_name: row.barber_name,
+    barber_avatar: row.barber_avatar,
+    token_number: row.token_number,
+    status: row.status,
+    position,
+    people_ahead: peopleAhead,
+    estimated_wait_minutes: estimatedWait,
+    joined_at: new Date(row.joined_at).toISOString(),
+    services,
+    total_price: totalPrice,
+    total_duration_minutes: totalDuration,
+  };
+}
+
+export async function leaveCustomerQueue(
+  customerId: string,
+  db: Queryable = pool,
+): Promise<{ id: string; branch_id: string } | null> {
+  const { rows } = await db.query<{ id: string; branch_id: string }>(
+    `UPDATE salon_queue_entries
+     SET status = 'LEFT', updated_at = now()
+     WHERE customer_id = $1 AND status = 'WAITING'
+     RETURNING id, branch_id`,
+    [customerId],
+  );
+  return rows[0] ?? null;
+}
+

@@ -227,3 +227,41 @@ export async function fetchCustomerAppointments() {
     '/salon/customer/appointments',
   );
 }
+
+export interface CustomerActiveQueue {
+  id: string;
+  branch_id: string;
+  branch_name: string;
+  branch_address: string;
+  business_name: string;
+  queue_type: 'BARBER' | 'GENERAL';
+  barber_id: string | null;
+  barber_name: string | null;
+  barber_avatar: string | null;
+  token_number: string | null;
+  status: 'WAITING' | 'CALLED' | 'IN_SERVICE';
+  position: number;
+  people_ahead: number;
+  estimated_wait_minutes: number;
+  joined_at: string;
+  services: {
+    id: string;
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }[];
+  total_price: number;
+  total_duration_minutes: number;
+}
+
+export async function fetchCustomerActiveQueue(): Promise<CustomerActiveQueue | null> {
+  const data = await apiRequest<{ activeQueue: CustomerActiveQueue | null }>('/salon/customer/active-queue');
+  return data.activeQueue;
+}
+
+export async function leaveCustomerQueue(): Promise<void> {
+  await apiRequest<{ success: boolean }>('/salon/customer/queue/leave', {
+    method: 'POST',
+  });
+}
+

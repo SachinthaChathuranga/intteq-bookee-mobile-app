@@ -323,6 +323,30 @@ export const en = {
   'booking.viewAppointments': 'View Appointments',
   'booking.done': 'Done',
   'booking.nowNotAvailable': 'No barbers currently on shift for live queue today.',
+
+  // Customer Wait Screen
+  'waitScreen.title': 'Live Queue',
+  'waitScreen.position': 'Position #{position}',
+  'waitScreen.peopleAhead': '{count} ahead of you',
+  'waitScreen.youAreNext': "You're next!",
+  'waitScreen.estimatedWait': '~{minutes} min wait',
+  'waitScreen.barber': 'Barber',
+  'waitScreen.anyBarber': 'Any Barber',
+  'waitScreen.anyBarberSub': 'Assigned as soon as a barber is ready',
+  'waitScreen.leaveQueue': 'Leave Queue',
+  'waitScreen.leaveQueueConfirmTitle': 'Leave Queue?',
+  'waitScreen.leaveQueueConfirmDesc': 'Are you sure you want to leave the queue? You will lose your current spot.',
+  'waitScreen.leaveQueueConfirmAction': 'Yes, Leave Queue',
+  'waitScreen.notInQueueTitle': 'Not In Queue',
+  'waitScreen.notInQueueDesc': "You don't have an active queue entry at the moment.",
+  'waitScreen.backToHome': 'Back to Home',
+  'waitScreen.inQueueCardTitle': "You're in Queue",
+  'waitScreen.inQueueCardView': 'View Status',
+  'waitScreen.statusWaiting': 'Waiting',
+  'waitScreen.statusCalled': 'Called — Please Proceed',
+  'waitScreen.statusInService': 'In Service',
+  'waitScreen.selectedServices': 'Selected Services',
+  'waitScreen.total': 'Total',
 };
 
 export type TranslationKey = keyof typeof en;
