@@ -10,6 +10,7 @@ export const ta: Translations = {
   'common.cancel': 'ரத்துசெய்',
   'common.done': 'முடிந்தது',
   'common.back': 'பின்செல்க',
+  'common.success': 'வெற்றி',
   'name.required': 'பெயர் தேவை.',
   'phone.required': 'தொலைபேசி எண் தேவை.',
   'common.error.generic': 'ஏதோ தவறு நடந்தது. மீண்டும் முயற்சிக்கவும்.',
@@ -104,8 +105,20 @@ export const ta: Translations = {
   'walkin.availableToday': 'இன்று கிடைக்கிறது',
 
   'appointments.title': 'எனது முன்பதிவுகள்',
-
-  'appointments.placeholder': 'உங்கள் வரவிருக்கும் மற்றும் கடந்தகால முன்பதிவுகள் — மைல்கல் 7 இல் வரும்',
+  'appointments.placeholder': 'உங்களிடம் வரவிருக்கும் அல்லது கடந்தகால முன்பதிவுகள் எதுவும் இல்லை.',
+  'appointments.cancel': 'ரத்துசெய்',
+  'appointments.cancelConfirmTitle': 'முன்பதிவை ரத்துசெய்',
+  'appointments.cancelConfirmMessage': 'இந்த முன்பதிவை நிச்சயமாக ரத்துசெய்ய விரும்புகிறீர்களா?',
+  'appointments.cancelConfirmBtn': 'ஆம், ரத்துசெய்',
+  'appointments.keepBtn': 'முன்பதிவை வைத்திரு',
+  'appointments.reschedule': 'நேரத்தை மாற்று',
+  'appointments.rescheduleTitle': 'முன்பதிவு நேரத்தை மாற்று',
+  'appointments.selectDate': 'தேதியைத் தேர்ந்தெடுக்கவும்',
+  'appointments.selectSlot': 'நேரத்தைத் தேர்ந்தெடுக்கவும்',
+  'appointments.confirmReschedule': 'மாற்றத்தை உறுதிசெய்',
+  'appointments.rescheduleSuccess': 'முன்பதிவு வெற்றிகரமாக மாற்றப்பட்டது!',
+  'appointments.cancelSuccess': 'முன்பதிவு வெற்றிகரமாக ரத்துசெய்யப்பட்டது!',
+  'appointments.slotConflict': 'இந்த நேரம் மற்றொரு வாடிக்கையாளரால் முன்பதிவு செய்யப்பட்டுள்ளது. வேறு நேரத்தைத் தேர்ந்தெடுக்கவும்.',
 
   // Profile Screen
   'profile.title': 'சுயவிவரம்',

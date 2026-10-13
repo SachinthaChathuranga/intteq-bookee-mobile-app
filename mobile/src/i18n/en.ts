@@ -9,6 +9,7 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.done': 'Done',
   'common.back': 'Back',
+  'common.success': 'Success',
   'name.required': 'Name is required.',
   'phone.required': 'Phone number is required.',
   'common.error.generic': 'Something went wrong. Please try again.',
@@ -103,8 +104,20 @@ export const en = {
   'walkin.availableToday': 'Available Today',
 
   'appointments.title': 'My Appointments',
-
-  'appointments.placeholder': 'Your upcoming and past bookings — coming in Milestone 7',
+  'appointments.placeholder': 'You have no upcoming or past appointments.',
+  'appointments.cancel': 'Cancel',
+  'appointments.cancelConfirmTitle': 'Cancel Appointment',
+  'appointments.cancelConfirmMessage': 'Are you sure you want to cancel this appointment?',
+  'appointments.cancelConfirmBtn': 'Yes, Cancel',
+  'appointments.keepBtn': 'Keep Appointment',
+  'appointments.reschedule': 'Reschedule',
+  'appointments.rescheduleTitle': 'Reschedule Appointment',
+  'appointments.selectDate': 'Select Date',
+  'appointments.selectSlot': 'Select Time Slot',
+  'appointments.confirmReschedule': 'Confirm Reschedule',
+  'appointments.rescheduleSuccess': 'Appointment rescheduled successfully!',
+  'appointments.cancelSuccess': 'Appointment cancelled successfully!',
+  'appointments.slotConflict': 'This slot was just booked by another customer. Please select another slot.',
 
   // Profile Screen
   'profile.title': 'Profile',

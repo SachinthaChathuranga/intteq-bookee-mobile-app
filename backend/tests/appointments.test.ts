@@ -209,4 +209,48 @@ describe('Salon Availability & Appointments', () => {
     expect(res.body.barbers[0]).toHaveProperty('is_working_today');
     expect(res.body.barbers[0]).toHaveProperty('offered_service_ids');
   });
+
+  it('9. POST /salon/appointments/:id/reschedule updates appointment start_at and status to RESCHEDULED', async () => {
+    // Fetch customer's appointments
+    const listRes = await request(app)
+      .get('/salon/customer/appointments')
+      .set('Authorization', `Bearer ${customerToken}`);
+
+    expect(listRes.status).toBe(200);
+    const apt = listRes.body.appointments.find((a: any) => a.status === 'CONFIRMED');
+    expect(apt).toBeDefined();
+    expect(apt.services[0]).toHaveProperty('id');
+
+    const d = new Date();
+    d.setDate(d.getDate() + 12);
+    const newDateStr = d.toISOString().split('T')[0]!;
+    const newStartAt = `${newDateStr}T10:00:00+05:30`;
+
+    const res = await request(app)
+      .post(`/salon/appointments/${apt.id}/reschedule`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ startAt: newStartAt });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.appointment.status).toBe('RESCHEDULED');
+  });
+
+  it('10. POST /salon/appointments/:id/cancel marks appointment as CANCELLED', async () => {
+    const listRes = await request(app)
+      .get('/salon/customer/appointments')
+      .set('Authorization', `Bearer ${customerToken}`);
+
+    const apt = listRes.body.appointments.find((a: any) => a.status === 'RESCHEDULED');
+    expect(apt).toBeDefined();
+
+    const res = await request(app)
+      .post(`/salon/appointments/${apt.id}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.appointment.status).toBe('CANCELLED');
+  });
 });
+

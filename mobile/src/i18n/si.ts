@@ -10,6 +10,7 @@ export const si: Translations = {
   'common.cancel': 'අවලංගු කරන්න',
   'common.done': 'අවසන්',
   'common.back': 'ආපසු',
+  'common.success': 'සාර්ථකයි',
   'name.required': 'නම ඇතුළත් කිරීම අනිවාර්යයි.',
   'phone.required': 'දුරකථන අංකය ඇතුළත් කිරීම අනිවාර්යයි.',
   'common.error.generic': 'යම් දෝෂයක් සිදු විය. කරුණාකර නැවත උත්සාහ කරන්න.',
@@ -104,8 +105,20 @@ export const si: Translations = {
   'walkin.availableToday': 'අද පවතී',
 
   'appointments.title': 'මගේ වෙන්කිරීම්',
-
-  'appointments.placeholder': 'ඔබේ ඉදිරි සහ පසුගිය වෙන්කිරීම් — 7 වන පියවරෙන් පැමිණේ',
+  'appointments.placeholder': 'ඔබට ඉදිරි හෝ පසුගිය වෙන්කිරීම් නොමැත.',
+  'appointments.cancel': 'අවලංගු කරන්න',
+  'appointments.cancelConfirmTitle': 'වෙන්කිරීම අවලංගු කරන්න',
+  'appointments.cancelConfirmMessage': 'ඔබට මෙම වෙන්කිරීම අවලංගු කිරීමට අවශ්‍ය බව සහතිකද?',
+  'appointments.cancelConfirmBtn': 'ඔව්, අවලංගු කරන්න',
+  'appointments.keepBtn': 'තබා ගන්න',
+  'appointments.reschedule': 'වේලාව වෙනස් කරන්න',
+  'appointments.rescheduleTitle': 'වෙන්කිරීමේ වේලාව වෙනස් කරන්න',
+  'appointments.selectDate': 'දිනය තෝරන්න',
+  'appointments.selectSlot': 'වේලා තීරය තෝරන්න',
+  'appointments.confirmReschedule': 'වෙනස් කිරීම තහවුරු කරන්න',
+  'appointments.rescheduleSuccess': 'වෙන්කිරීම සාර්ථකව වෙනස් කරන ලදී!',
+  'appointments.cancelSuccess': 'වෙන්කිරීම සාර්ථකව අවලංගු කරන ලදී!',
+  'appointments.slotConflict': 'මෙම වේලාව වෙනත් පාරිභෝගිකයෙකු විසින් වෙන්කර ඇත. කරුණාකර වෙනත් වේලාවක් තෝරන්න.',
 
   // Profile Screen
   'profile.title': 'පැතිකඩ',

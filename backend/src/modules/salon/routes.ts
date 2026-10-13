@@ -39,6 +39,7 @@ import { assignGeneralQueueEntry, getBranchLiveFloor } from './liveFloorRepo.js'
 import { searchSalonBranches } from './searchRepo.js';
 import { calculateWaitTimes, createWalkIn } from './walkInRepo.js';
 import {
+  cancelAppointment,
   createAppointment,
   getBarberTodayBranch,
   getBranchAvailability,
@@ -47,6 +48,7 @@ import {
   getCustomerAppointments,
   joinCustomerLiveQueue,
   leaveCustomerQueue,
+  rescheduleAppointment,
 } from './appointmentRepo.js';
 import { addFavourite, listFavourites, removeFavourite } from './favouritesRepo.js';
 
@@ -620,6 +622,41 @@ salonRouter.post(
     }
   },
 );
+
+const rescheduleSchema = z.object({
+  startAt: z.string().min(10),
+});
+
+// Cancel Appointment (Customer or Barber)
+salonRouter.post('/appointments/:id/cancel', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const appointmentId = String(req.params.id);
+    const result = await cancelAppointment(appointmentId, userId);
+    broadcastBranchEvent(result.branch_id, { type: 'APPOINTMENT_UPDATED' });
+    res.json({ success: true, appointment: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Reschedule Appointment (Customer or Barber)
+salonRouter.post(
+  '/appointments/:id/reschedule',
+  validateBody(rescheduleSchema),
+  async (req, res, next) => {
+    try {
+      const userId = (req as unknown as AuthedRequest).userId;
+      const appointmentId = String(req.params.id);
+      const result = await rescheduleAppointment(appointmentId, userId, req.body.startAt);
+      broadcastBranchEvent(result.branch_id, { type: 'APPOINTMENT_UPDATED' });
+      res.json({ success: true, appointment: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 
 // App Customer Join Live Queue ("Now — join queue")
 salonRouter.post(

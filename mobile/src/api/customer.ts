@@ -216,6 +216,8 @@ export interface CustomerBookedAppointment {
   total_price: number;
   total_duration_minutes: number;
   services: {
+    id?: string;
+    service_id?: string;
     name: string;
     price: number;
     duration_minutes: number;
@@ -226,6 +228,22 @@ export async function fetchCustomerAppointments() {
   return await apiRequest<{ appointments: CustomerBookedAppointment[] }>(
     '/salon/customer/appointments',
   );
+}
+
+export async function cancelCustomerAppointment(appointmentId: string): Promise<void> {
+  await apiRequest(`/salon/appointments/${appointmentId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+export async function rescheduleCustomerAppointment(
+  appointmentId: string,
+  startAt: string,
+): Promise<void> {
+  await apiRequest(`/salon/appointments/${appointmentId}/reschedule`, {
+    method: 'POST',
+    body: { startAt },
+  });
 }
 
 export interface CustomerActiveQueue {

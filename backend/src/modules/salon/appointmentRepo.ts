@@ -690,10 +690,10 @@ export async function getCustomerAppointments(
        a.start_at,
        a.end_at,
        a.status,
-       a.total_price,
-       a.total_duration_minutes,
+       COALESCE((SELECT SUM(sas.price) FROM salon_appointment_services sas WHERE sas.appointment_id = a.id), 0) AS total_price,
+       COALESCE((SELECT SUM(sas.duration_minutes) FROM salon_appointment_services sas WHERE sas.appointment_id = a.id), 0)::integer AS total_duration_minutes,
        COALESCE(
-         (SELECT json_agg(json_build_object('name', s.name, 'price', s.price, 'duration_minutes', s.duration_minutes))
+         (SELECT json_agg(json_build_object('id', s.id, 'service_id', s.id, 'name', s.name, 'price', s.price, 'duration_minutes', s.duration_minutes))
           FROM salon_appointment_services sas
           JOIN services s ON sas.service_id = s.id
           WHERE sas.appointment_id = a.id),
@@ -895,4 +895,120 @@ export async function leaveCustomerQueue(
   );
   return rows[0] ?? null;
 }
+
+export async function cancelAppointment(
+  appointmentId: string,
+  actorId: string,
+  isStaff: boolean = false,
+  db: Queryable = pool,
+): Promise<{ id: string; branch_id: string; status: string }> {
+  const { rows } = await db.query<{
+    id: string;
+    branch_id: string;
+    customer_id: string;
+    barber_id: string;
+    status: string;
+  }>(
+    `SELECT id, branch_id, customer_id, barber_id, status FROM salon_appointments WHERE id = $1`,
+    [appointmentId],
+  );
+
+  if (rows.length === 0) {
+    throw new HttpError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found.');
+  }
+
+  const app = rows[0]!;
+  if (!isStaff && app.customer_id !== actorId && app.barber_id !== actorId) {
+    throw new HttpError(403, 'FORBIDDEN', 'You cannot cancel this appointment.');
+  }
+
+  if (app.status !== 'CONFIRMED' && app.status !== 'RESCHEDULED') {
+    throw new HttpError(400, 'CANNOT_CANCEL', `Cannot cancel appointment in status ${app.status}.`);
+  }
+
+  const { rows: updateRows } = await db.query<{ id: string; branch_id: string; status: string }>(
+    `UPDATE salon_appointments
+     SET status = 'CANCELLED', updated_at = now()
+     WHERE id = $1
+     RETURNING id, branch_id, status`,
+    [appointmentId],
+  );
+
+  return updateRows[0]!;
+}
+
+export async function rescheduleAppointment(
+  appointmentId: string,
+  actorId: string,
+  newStartAt: string,
+  isStaff: boolean = false,
+  db: Queryable = pool,
+): Promise<{
+  id: string;
+  branch_id: string;
+  start_at: Date;
+  end_at: Date;
+  status: string;
+}> {
+  const { rows } = await db.query<{
+    id: string;
+    branch_id: string;
+    customer_id: string;
+    barber_id: string;
+    status: string;
+    total_duration_minutes: number;
+  }>(
+    `SELECT a.id, a.branch_id, a.customer_id, a.barber_id, a.status,
+       COALESCE((SELECT SUM(sas.duration_minutes) FROM salon_appointment_services sas WHERE sas.appointment_id = a.id), 0)::integer AS total_duration_minutes
+     FROM salon_appointments a WHERE a.id = $1`,
+    [appointmentId],
+  );
+
+  if (rows.length === 0) {
+    throw new HttpError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found.');
+  }
+
+  const app = rows[0]!;
+  if (!isStaff && app.customer_id !== actorId && app.barber_id !== actorId) {
+    throw new HttpError(403, 'FORBIDDEN', 'You cannot reschedule this appointment.');
+  }
+
+  if (app.status !== 'CONFIRMED' && app.status !== 'RESCHEDULED') {
+    throw new HttpError(400, 'CANNOT_RESCHEDULE', `Cannot reschedule appointment in status ${app.status}.`);
+  }
+
+  const startDate = new Date(newStartAt);
+  if (isNaN(startDate.getTime())) {
+    throw new HttpError(400, 'INVALID_START_TIME', 'Invalid start time format.');
+  }
+  const endDate = new Date(startDate.getTime() + app.total_duration_minutes * 60 * 1000);
+
+  try {
+    const { rows: updateRows } = await db.query<{
+      id: string;
+      branch_id: string;
+      start_at: Date;
+      end_at: Date;
+      status: string;
+    }>(
+      `UPDATE salon_appointments
+       SET start_at = $1, end_at = $2, status = 'RESCHEDULED', updated_at = now()
+       WHERE id = $3
+       RETURNING id, branch_id, start_at, end_at, status`,
+      [startDate.toISOString(), endDate.toISOString(), appointmentId],
+    );
+
+    return updateRows[0]!;
+  } catch (err: any) {
+    if (err.code === '23P01') {
+      throw new HttpError(
+        409,
+        'SLOT_ALREADY_BOOKED',
+        'This slot was just booked by another customer. Please select another slot.',
+      );
+    }
+    throw err;
+  }
+}
+
 
