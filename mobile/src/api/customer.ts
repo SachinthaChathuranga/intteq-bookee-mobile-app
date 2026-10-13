@@ -265,3 +265,28 @@ export async function leaveCustomerQueue(): Promise<void> {
   });
 }
 
+export interface CustomerFavourite {
+  id: string;
+  type: 'SALON' | 'BARBER';
+  target_id: string;
+}
+
+export async function fetchCustomerFavourites(): Promise<CustomerFavourite[]> {
+  const data = await apiRequest<{ favourites: CustomerFavourite[] }>('/salon/customer/favourites');
+  return data.favourites;
+}
+
+export async function addCustomerFavourite(type: 'SALON' | 'BARBER', targetId: string): Promise<void> {
+  await apiRequest('/salon/customer/favourites', {
+    method: 'POST',
+    body: { type, targetId },
+  });
+}
+
+export async function removeCustomerFavourite(type: 'SALON' | 'BARBER', targetId: string): Promise<void> {
+  await apiRequest(`/salon/customer/favourites/${type}/${targetId}`, {
+    method: 'DELETE',
+  });
+}
+
+

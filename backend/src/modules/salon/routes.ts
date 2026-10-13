@@ -48,6 +48,7 @@ import {
   joinCustomerLiveQueue,
   leaveCustomerQueue,
 } from './appointmentRepo.js';
+import { addFavourite, listFavourites, removeFavourite } from './favouritesRepo.js';
 
 export const salonRouter = Router();
 salonRouter.use(requireAuth);
@@ -739,6 +740,57 @@ salonRouter.post('/customer/queue/leave', async (req, res, next) => {
     next(err);
   }
 });
+
+const favouriteSchema = z.object({
+  type: z.enum(['SALON', 'BARBER']),
+  targetId: z.string().uuid(),
+});
+
+// Customer: List saved favourites
+salonRouter.get('/customer/favourites', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const favourites = await listFavourites(userId);
+    res.json({ favourites });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer: Add favourite
+salonRouter.post(
+  '/customer/favourites',
+  validateBody(favouriteSchema),
+  async (req, res, next) => {
+    try {
+      const userId = (req as unknown as AuthedRequest).userId;
+      const favourite = await addFavourite(userId, req.body.type, req.body.targetId);
+      res.status(201).json({ success: true, favourite });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Customer: Remove favourite
+salonRouter.delete(
+  '/customer/favourites/:type/:targetId',
+  async (req, res, next) => {
+    try {
+      const userId = (req as unknown as AuthedRequest).userId;
+      const type = req.params.type as 'SALON' | 'BARBER';
+      const targetId = String(req.params.targetId);
+      if (type !== 'SALON' && type !== 'BARBER') {
+        throw new HttpError(400, 'INVALID_FAVOURITE_TYPE');
+      }
+      const removed = await removeFavourite(userId, type, targetId);
+      res.json({ success: true, removed });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 
 
 

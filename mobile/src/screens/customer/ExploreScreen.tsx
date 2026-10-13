@@ -1,8 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { fetchSalons } from '../../api/customer';
+import {
+  addCustomerFavourite,
+  fetchCustomerFavourites,
+  fetchSalons,
+  removeCustomerFavourite,
+} from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -41,7 +46,27 @@ export function ExploreScreen({ navigation }: Props) {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'haircut' | 'beard' | 'kids'>('all');
-  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+
+  const queryClient = useQueryClient();
+  const favouritesQuery = useQuery({
+    queryKey: ['customer-favourites'],
+    queryFn: fetchCustomerFavourites,
+  });
+
+  const favouriteSet = new Set(favouritesQuery.data?.map((f) => f.target_id) ?? []);
+
+  const toggleFavouriteMutation = useMutation({
+    mutationFn: async (targetId: string) => {
+      if (favouriteSet.has(targetId)) {
+        await removeCustomerFavourite('SALON', targetId);
+      } else {
+        await addCustomerFavourite('SALON', targetId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-favourites'] });
+    },
+  });
 
   const filterKeywords: Record<'all' | 'haircut' | 'beard' | 'kids', string> = {
     all: '',
@@ -61,7 +86,7 @@ export function ExploreScreen({ navigation }: Props) {
 
   const toggleFavorite = (id: string) => {
     haptics.light();
-    setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
+    toggleFavouriteMutation.mutate(id);
   };
 
   return (
@@ -167,9 +192,9 @@ export function ExploreScreen({ navigation }: Props) {
                   style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
                 >
                   <Ionicons
-                    name={favorites[salon.id] ? 'heart' : 'heart-outline'}
+                    name={favouriteSet.has(salon.id) ? 'heart' : 'heart-outline'}
                     size={18}
-                    color={favorites[salon.id] ? colors.primary : colors.textMuted}
+                    color={favouriteSet.has(salon.id) ? colors.primary : colors.textMuted}
                   />
                 </Pressable>
               }

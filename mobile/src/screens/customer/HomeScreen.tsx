@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   FlatList,
@@ -13,9 +13,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {
+  addCustomerFavourite,
   fetchBarbers,
   fetchCustomerActiveQueue,
+  fetchCustomerFavourites,
   fetchSalons,
+  removeCustomerFavourite,
   type FeaturedBarber,
   type SalonSearchResult,
 } from '../../api/customer';
@@ -63,7 +66,6 @@ export function HomeScreen({ navigation }: Props) {
   const user = useAuthStore((s) => s.user);
   const { width: windowWidth } = useWindowDimensions();
 
-  const [favoriteSalons, setFavoriteSalons] = useState<Record<string, boolean>>({});
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
 
   const activeQueueQuery = useQuery({
@@ -90,9 +92,30 @@ export function HomeScreen({ navigation }: Props) {
     ? barbersQuery.data.barbers
     : MOCK_BARBERS;
 
-  const toggleFavorite = (id: string) => {
+  const queryClient = useQueryClient();
+  const favouritesQuery = useQuery({
+    queryKey: ['customer-favourites'],
+    queryFn: fetchCustomerFavourites,
+  });
+
+  const favouriteSet = new Set(favouritesQuery.data?.map((f) => f.target_id) ?? []);
+
+  const toggleFavouriteMutation = useMutation({
+    mutationFn: async ({ type, targetId }: { type: 'SALON' | 'BARBER'; targetId: string }) => {
+      if (favouriteSet.has(targetId)) {
+        await removeCustomerFavourite(type, targetId);
+      } else {
+        await addCustomerFavourite(type, targetId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-favourites'] });
+    },
+  });
+
+  const toggleFavorite = (type: 'SALON' | 'BARBER', id: string) => {
     haptics.light();
-    setFavoriteSalons((prev) => ({ ...prev, [id]: !prev[id] }));
+    toggleFavouriteMutation.mutate({ type, targetId: id });
   };
 
   const CAROUSEL_CARD_WIDTH = windowWidth - spacing.lg * 2;
@@ -233,13 +256,13 @@ export function HomeScreen({ navigation }: Props) {
                 floatingBadge={<RatingBadge rating="4.7" />}
                 floatingAction={
                   <Pressable
-                    onPress={() => toggleFavorite(item.id)}
+                    onPress={() => toggleFavorite('SALON', item.id)}
                     style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
                   >
                     <Ionicons
-                      name={favoriteSalons[item.id] ? 'heart' : 'heart-outline'}
+                      name={favouriteSet.has(item.id) ? 'heart' : 'heart-outline'}
                       size={18}
-                      color={favoriteSalons[item.id] ? colors.primary : colors.textMuted}
+                      color={favouriteSet.has(item.id) ? colors.primary : colors.textMuted}
                     />
                   </Pressable>
                 }
@@ -333,7 +356,16 @@ export function HomeScreen({ navigation }: Props) {
                   rating={(barber as any).rating ?? (barber as any).avg_rating ?? '4.8'}
                 />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Ionicons name="heart-outline" size={18} color={colors.textMuted} />
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => toggleFavorite('BARBER', barber.id)}
+                  >
+                    <Ionicons
+                      name={favouriteSet.has(barber.id) ? 'heart' : 'heart-outline'}
+                      size={18}
+                      color={favouriteSet.has(barber.id) ? colors.primary : colors.textMuted}
+                    />
+                  </Pressable>
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </View>
               </View>
@@ -368,13 +400,13 @@ export function HomeScreen({ navigation }: Props) {
           floatingBadge={<RatingBadge rating="4.7" />}
           floatingAction={
             <Pressable
-              onPress={() => toggleFavorite(item.id)}
+              onPress={() => toggleFavorite('SALON', item.id)}
               style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
             >
               <Ionicons
-                name={favoriteSalons[item.id] ? 'heart' : 'heart-outline'}
+                name={favouriteSet.has(item.id) ? 'heart' : 'heart-outline'}
                 size={18}
-                color={favoriteSalons[item.id] ? colors.primary : colors.textMuted}
+                color={favouriteSet.has(item.id) ? colors.primary : colors.textMuted}
               />
             </Pressable>
           }
