@@ -1011,4 +1011,169 @@ export async function rescheduleAppointment(
   }
 }
 
+export interface BarberAppointmentItem {
+  id: string;
+  branch_id: string;
+  barber_id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  notes: string | null;
+  total_price: number;
+  total_duration_minutes: number;
+  services: {
+    id: string;
+    service_id: string;
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }[];
+}
+
+export async function getBarberAppointments(
+  branchId: string,
+  barberId: string,
+  dateStr?: string,
+  db: Queryable = pool,
+): Promise<BarberAppointmentItem[]> {
+  const targetDate =
+    dateStr ||
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Colombo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
+  const { rows } = await db.query<any>(
+    `SELECT
+       a.id,
+       a.branch_id,
+       a.barber_id,
+       a.customer_id,
+       u.name AS customer_name,
+       u.phone AS customer_phone,
+       a.start_at,
+       a.end_at,
+       a.status,
+       a.notes,
+       COALESCE((SELECT SUM(sas.price) FROM salon_appointment_services sas WHERE sas.appointment_id = a.id), 0) AS total_price,
+       COALESCE((SELECT SUM(sas.duration_minutes) FROM salon_appointment_services sas WHERE sas.appointment_id = a.id), 0)::integer AS total_duration_minutes,
+       COALESCE(
+         (SELECT json_agg(json_build_object('id', s.id, 'service_id', s.id, 'name', s.name, 'price', s.price, 'duration_minutes', s.duration_minutes))
+          FROM salon_appointment_services sas
+          JOIN services s ON sas.service_id = s.id
+          WHERE sas.appointment_id = a.id),
+         '[]'::json
+       ) AS services
+     FROM salon_appointments a
+     JOIN users u ON a.customer_id = u.id
+     WHERE a.branch_id = $1
+       AND a.barber_id = $2
+       AND (a.start_at AT TIME ZONE 'Asia/Colombo')::date = $3::date
+     ORDER BY a.start_at ASC`,
+    [branchId, barberId, targetDate],
+  );
+
+  return rows.map((r: any) => ({
+    ...r,
+    total_price: parseFloat(r.total_price),
+    services: typeof r.services === 'string' ? JSON.parse(r.services) : r.services,
+  }));
+}
+
+export async function markAppointmentArrived(
+  appointmentId: string,
+  actorId: string,
+  isStaff: boolean = false,
+  db: Queryable = pool,
+): Promise<{
+  id: string;
+  branch_id: string;
+  status: string;
+  queueEntryId: string;
+  token: string;
+}> {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query<{
+      id: string;
+      branch_id: string;
+      customer_id: string;
+      barber_id: string;
+      status: string;
+      customer_name: string;
+    }>(
+      `SELECT a.id, a.branch_id, a.customer_id, a.barber_id, a.status, u.name AS customer_name
+       FROM salon_appointments a
+       JOIN users u ON a.customer_id = u.id
+       WHERE a.id = $1
+       FOR UPDATE`,
+      [appointmentId],
+    );
+
+    if (rows.length === 0) {
+      throw new HttpError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found.');
+    }
+
+    const app = rows[0]!;
+    if (!isStaff && app.barber_id !== actorId) {
+      throw new HttpError(403, 'FORBIDDEN', 'You cannot mark this appointment as arrived.');
+    }
+
+    if (app.status !== 'CONFIRMED' && app.status !== 'RESCHEDULED') {
+      throw new HttpError(400, 'CANNOT_ARRIVE', `Cannot mark appointment in status ${app.status} as arrived.`);
+    }
+
+    // 1. Update appointment status to ARRIVED
+    await client.query(
+      `UPDATE salon_appointments SET status = 'ARRIVED', updated_at = now() WHERE id = $1`,
+      [appointmentId],
+    );
+
+    // 2. Generate sequential token for branch
+    const token = await nextBranchToken(app.branch_id, client);
+    const displayName = app.customer_name || token;
+
+    // 3. Insert into salon_queue_entries
+    const { rows: queueRows } = await client.query<{ id: string }>(
+      `INSERT INTO salon_queue_entries (
+         branch_id, queue_type, barber_id, customer_id, walk_in_name, token_number, source, status, joined_at
+       ) VALUES ($1, 'BARBER', $2, $3, $4, $5, 'APPOINTMENT', 'WAITING', now())
+       RETURNING id`,
+      [app.branch_id, app.barber_id, app.customer_id, displayName, token],
+    );
+    const queueEntryId = queueRows[0]!.id;
+
+    // 4. Attach services from appointment
+    const { rows: appSvcs } = await client.query<{
+      service_id: string;
+      price: string;
+      duration_minutes: number;
+    }>(
+      `SELECT service_id, price, duration_minutes FROM salon_appointment_services WHERE appointment_id = $1`,
+      [appointmentId],
+    );
+
+    for (const svc of appSvcs) {
+      await client.query(
+        `INSERT INTO salon_queue_entry_services (queue_entry_id, service_id, price, duration_minutes)
+         VALUES ($1, $2, $3, $4)`,
+        [queueEntryId, svc.service_id, parseFloat(svc.price), svc.duration_minutes],
+      );
+    }
+
+    return {
+      id: app.id,
+      branch_id: app.branch_id,
+      status: 'ARRIVED',
+      queueEntryId,
+      token,
+    };
+  });
+}
+
+
 

@@ -38,6 +38,7 @@ export type OwnerStackParamList = {
 
 export type BarberStackParamList = {
   BarberHome: undefined;
+  BarberAppointments: undefined;
   EndShift: { branchId?: string; shiftId?: string };
   AddWalkIn: { branchId?: string; preselectedBarberId?: string };
   ExitWorkspace?: undefined;

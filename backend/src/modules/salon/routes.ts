@@ -45,9 +45,11 @@ import {
   getBranchAvailability,
   getBranchBarbersForCustomer,
   findCustomerActiveQueue,
+  getBarberAppointments,
   getCustomerAppointments,
   joinCustomerLiveQueue,
   leaveCustomerQueue,
+  markAppointmentArrived,
   rescheduleAppointment,
 } from './appointmentRepo.js';
 import { addFavourite, listFavourites, removeFavourite } from './favouritesRepo.js';
@@ -656,6 +658,33 @@ salonRouter.post(
     }
   },
 );
+
+// Barber: Today's Appointments
+salonRouter.get('/branches/:branchId/barber/appointments', async (req, res, next) => {
+  try {
+    const branchId = String(req.params.branchId);
+    const userId = (req as unknown as AuthedRequest).userId;
+    const dateStr = req.query.date ? String(req.query.date) : undefined;
+    const appointments = await getBarberAppointments(branchId, userId, dateStr);
+    res.json({ appointments });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Mark Appointment Arrived (adds to live queue)
+salonRouter.post('/appointments/:id/mark-arrived', async (req, res, next) => {
+  try {
+    const userId = (req as unknown as AuthedRequest).userId;
+    const appointmentId = String(req.params.id);
+    const result = await markAppointmentArrived(appointmentId, userId);
+    broadcastBranchEvent(result.branch_id, { type: 'QUEUE_UPDATED' });
+    broadcastBranchEvent(result.branch_id, { type: 'APPOINTMENT_UPDATED' });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
 
 
 // App Customer Join Live Queue ("Now — join queue")

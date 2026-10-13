@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
@@ -8,8 +9,13 @@ const app = createApp();
 
 import { config } from '../src/config/index.js';
 
+function signToken(userId: string): string {
+  return jwt.sign({ sub: userId }, config.JWT_ACCESS_SECRET);
+}
+
 let customerToken: string;
 let customerId: string;
+let barberAmalToken: string;
 let colomboBranchId: string;
 let barberAmalId: string;
 let haircutServiceId: string;
@@ -40,6 +46,7 @@ beforeAll(async () => {
     `SELECT id FROM users WHERE phone = '94770000300' LIMIT 1`,
   );
   barberAmalId = barberRes.rows[0]!.id;
+  barberAmalToken = signToken(barberAmalId);
 
   const svcRes = await pool.query<{ id: string; name: string }>(
     `SELECT id, name FROM services WHERE branch_id = $1`,
@@ -251,6 +258,77 @@ describe('Salon Availability & Appointments', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.appointment.status).toBe('CANCELLED');
+  });
+
+  it('11. Barber "Today\'s appointments" tab: GET /salon/branches/:branchId/barber/appointments lists appointments', async () => {
+    // Book a fresh appointment for Barber Amal
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    const dateStr = d.toISOString().split('T')[0]!;
+    const startAt = `${dateStr}T11:00:00+05:30`;
+
+    const bookRes = await request(app)
+      .post(`/salon/branches/${colomboBranchId}/appointments`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        barberId: barberAmalId,
+        bookingMode: 'SPECIFIC',
+        serviceIds: [haircutServiceId],
+        startAt,
+      });
+
+    expect(bookRes.status).toBe(201);
+    const appointmentId = bookRes.body.appointment.id;
+
+    // Fetch barber appointments for this date
+    const listRes = await request(app)
+      .get(`/salon/branches/${colomboBranchId}/barber/appointments`)
+      .set('Authorization', `Bearer ${barberAmalToken}`)
+      .query({ date: dateStr });
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body.appointments)).toBe(true);
+    const found = listRes.body.appointments.find((a: any) => a.id === appointmentId);
+    expect(found).toBeDefined();
+    expect(found.customer_name).toBe('Nimal');
+    expect(found.status).toBe('CONFIRMED');
+    expect(found.services.length).toBe(1);
+    expect(found.services[0].name).toBe('Haircut');
+  });
+
+  it('12. Barber mark arrived: POST /salon/appointments/:id/mark-arrived adds to queue', async () => {
+    // Fetch barber's confirmed appointment
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    const dateStr = d.toISOString().split('T')[0]!;
+
+    const listRes = await request(app)
+      .get(`/salon/branches/${colomboBranchId}/barber/appointments`)
+      .set('Authorization', `Bearer ${barberAmalToken}`)
+      .query({ date: dateStr });
+
+    const apt = listRes.body.appointments.find((a: any) => a.status === 'CONFIRMED');
+    expect(apt).toBeDefined();
+
+    const arriveRes = await request(app)
+      .post(`/salon/appointments/${apt.id}/mark-arrived`)
+      .set('Authorization', `Bearer ${barberAmalToken}`);
+
+    expect(arriveRes.status).toBe(200);
+    expect(arriveRes.body.success).toBe(true);
+    expect(arriveRes.body.status).toBe('ARRIVED');
+    expect(arriveRes.body.token).toMatch(/^W-\d+/);
+    expect(arriveRes.body.queueEntryId).toBeDefined();
+
+    // Verify queue entry in database
+    const qRes = await pool.query<{ id: string; status: string; source: string; token_number: string }>(
+      'SELECT id, status, source, token_number FROM salon_queue_entries WHERE id = $1',
+      [arriveRes.body.queueEntryId],
+    );
+    expect(qRes.rows.length).toBe(1);
+    expect(qRes.rows[0]!.status).toBe('WAITING');
+    expect(qRes.rows[0]!.source).toBe('APPOINTMENT');
+    expect(qRes.rows[0]!.token_number).toBe(arriveRes.body.token);
   });
 });
 

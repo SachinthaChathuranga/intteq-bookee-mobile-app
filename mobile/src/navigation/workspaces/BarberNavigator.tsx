@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useT } from '../../i18n';
 import { AddWalkInScreen } from '../../screens/workspaces/AddWalkInScreen';
+import { BarberAppointmentsScreen } from '../../screens/workspaces/BarberAppointmentsScreen';
 import { BarberHomeScreen } from '../../screens/workspaces/BarberHomeScreen';
 import { EndShiftScreen } from '../../screens/workspaces/EndShiftScreen';
 import { useWorkspaceStore } from '../../store/workspaceStore';
@@ -44,6 +45,16 @@ export function BarberNavigator() {
           tabBarLabel: t('nav.queue'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="BarberAppointments"
+        component={BarberAppointmentsScreen}
+        options={{
+          tabBarLabel: t('nav.appointments'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />

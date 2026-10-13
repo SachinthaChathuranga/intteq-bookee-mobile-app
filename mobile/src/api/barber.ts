@@ -169,3 +169,62 @@ export async function devEnqueueCustomer(
     body: input,
   });
 }
+
+export interface BarberAppointment {
+  id: string;
+  branch_id: string;
+  barber_id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  notes: string | null;
+  total_price: number;
+  total_duration_minutes: number;
+  services: {
+    id: string;
+    service_id: string;
+    name: string;
+    price: number;
+    duration_minutes: number;
+  }[];
+}
+
+export async function fetchBarberAppointments(branchId: string, date?: string) {
+  const qs = date ? `?date=${date}` : '';
+  return await apiRequest<{ appointments: BarberAppointment[] }>(
+    `/salon/branches/${branchId}/barber/appointments${qs}`,
+  );
+}
+
+export async function markAppointmentArrived(appointmentId: string) {
+  return await apiRequest<{
+    success: boolean;
+    id: string;
+    branch_id: string;
+    status: string;
+    queueEntryId: string;
+    token: string;
+  }>(`/salon/appointments/${appointmentId}/mark-arrived`, {
+    method: 'POST',
+  });
+}
+
+export async function rescheduleBarberAppointment(appointmentId: string, startAt: string) {
+  return await apiRequest<{
+    success: boolean;
+    appointment: {
+      id: string;
+      branch_id: string;
+      start_at: string;
+      end_at: string;
+      status: string;
+    };
+  }>(`/salon/appointments/${appointmentId}/reschedule`, {
+    method: 'POST',
+    body: { startAt },
+  });
+}
+

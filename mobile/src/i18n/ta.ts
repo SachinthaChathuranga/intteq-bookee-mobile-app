@@ -225,6 +225,14 @@ export const ta: Translations = {
   'barber.acceptInviteSubtitle': 'சலூன் உரிமையாளர் வழங்கிய 6 இலக்கக் குறியீட்டை உள்ளிடவும்',
   'barber.acceptCode': 'குறியீட்டைப் பயன்படுத்து',
   'barber.joinedSuccess': 'நீங்கள் வெற்றிகரமாக சலூன் கிளையில் இணைந்துள்ளீர்கள்!',
+  'barber.appointments.title': 'இன்றைய முன்பதிவுகள்',
+  'barber.appointments.empty': 'இன்றைக்கு முன்பதிவுகள் எதுவும் திட்டமிடப்படவில்லை',
+  'barber.appointments.markArrived': 'வந்ததாகக் குறிக்கவும்',
+  'barber.appointments.arrivedSuccess': 'வாடிக்கையாளர் வந்ததாகக் குறிக்கப்பட்டு வரிசையில் சேர்க்கப்பட்டார்!',
+  'barber.appointments.reschedule': 'நேரத்தை மாற்று',
+  'barber.appointments.rescheduleTitle': 'முன்பதிவு நேரத்தை மாற்று',
+  'barber.appointments.confirmReschedule': 'மாற்றத்தை உறுதிசெய்',
+  'barber.appointments.rescheduleSuccess': 'முன்பதிவு வெற்றிகரமாக மாற்றப்பட்டது!',
 
   // Barber Shift & Queue (Milestone 4)
   'shift.start': 'பணிநேரத்தைத் தொடங்கு',

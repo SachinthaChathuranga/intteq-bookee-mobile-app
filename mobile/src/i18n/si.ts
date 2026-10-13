@@ -225,6 +225,14 @@ export const si: Translations = {
   'barber.acceptInviteSubtitle': 'සැලූන් හිමිකරු විසින් ලබා දුන් ඉලක්කම් 6ක කේතය ඇතුළත් කරන්න',
   'barber.acceptCode': 'කේතය ඇතුළත් කරන්න',
   'barber.joinedSuccess': 'ඔබ සාර්ථකව සැලූන් ශාඛාවට සම්බන්ධ විය!',
+  'barber.appointments.title': 'අද දින වෙන්කිරීම්',
+  'barber.appointments.empty': 'අද දින සඳහා වෙන්කිරීම් කිසිවක් නැත',
+  'barber.appointments.markArrived': 'පැමිණි බව සලකුණු කරන්න',
+  'barber.appointments.arrivedSuccess': 'පාරිභෝගිකයා පැමිණි බව සලකුණු කර පෝලිමට එක් කරන ලදී!',
+  'barber.appointments.reschedule': 'වේලාව වෙනස් කරන්න',
+  'barber.appointments.rescheduleTitle': 'වෙන්කිරීමේ වේලාව වෙනස් කරන්න',
+  'barber.appointments.confirmReschedule': 'වෙනස් කිරීම තහවුරු කරන්න',
+  'barber.appointments.rescheduleSuccess': 'වෙන්කිරීම සාර්ථකව වෙනස් කරන ලදී!',
 
   // Barber Shift & Queue (Milestone 4)
   'shift.start': 'වැඩ මුරය අරඹන්න',

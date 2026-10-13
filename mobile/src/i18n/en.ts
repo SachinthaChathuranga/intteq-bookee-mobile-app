@@ -224,6 +224,14 @@ export const en = {
   'barber.acceptInviteSubtitle': 'Enter the 6-character invite code provided by your salon owner',
   'barber.acceptCode': 'Redeem code',
   'barber.joinedSuccess': 'You have successfully joined the salon branch!',
+  'barber.appointments.title': "Today's Appointments",
+  'barber.appointments.empty': 'No appointments scheduled for today',
+  'barber.appointments.markArrived': 'Mark Arrived',
+  'barber.appointments.arrivedSuccess': 'Customer marked arrived and added to queue!',
+  'barber.appointments.reschedule': 'Reschedule',
+  'barber.appointments.rescheduleTitle': 'Reschedule Appointment',
+  'barber.appointments.confirmReschedule': 'Confirm Reschedule',
+  'barber.appointments.rescheduleSuccess': 'Appointment rescheduled successfully!',
 
   // Barber Shift & Queue (Milestone 4)
   'shift.start': 'Start Shift',
