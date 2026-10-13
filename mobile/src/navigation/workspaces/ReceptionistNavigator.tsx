@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useT } from '../../i18n';
 import { AddWalkInScreen } from '../../screens/workspaces/AddWalkInScreen';
+import { ReceptionistAvailabilityScreen } from '../../screens/workspaces/ReceptionistAvailabilityScreen';
 import { ReceptionistHomeScreen } from '../../screens/workspaces/ReceptionistHomeScreen';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -43,6 +44,16 @@ export function ReceptionistNavigator() {
           tabBarLabel: t('nav.floor'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="grid-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AvailabilityLookup"
+        component={ReceptionistAvailabilityScreen}
+        options={{
+          tabBarLabel: t('nav.availability'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />

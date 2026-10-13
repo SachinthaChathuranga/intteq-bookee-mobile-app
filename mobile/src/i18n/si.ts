@@ -63,6 +63,7 @@ export const si: Translations = {
   'nav.branches': 'ශාඛා',
   'nav.services': 'සේවා',
   'nav.barbers': 'බාබර්වරු',
+  'nav.availability': 'වේලා ලබාගැනීම',
   'nav.exitWorkspace': 'පාරිභෝගික ඇප්',
 
   'explore.filterAll': 'සියල්ල',
@@ -303,6 +304,14 @@ export const si: Translations = {
   'floor.noGeneralQueue': 'පොදු පෝලිමේ කිසිවෙකු නැත.',
   'floor.barbersCount': '{count} දෙනෙකු සේවයේ',
   'floor.servingNow': 'දැනට සේවය: {name}',
+
+  // Receptionist Availability Lookup
+  'receptionist.availabilityTitle': 'වේලාවන් පරික්ෂා කරන්න',
+  'receptionist.selectServices': 'සේවාවන් තෝරන්න',
+  'receptionist.selectServicesHint': 'වේලා තීරයන් පරීක්ෂා කිරීමට සේවාවන් එකක් හෝ කිහිපයක් තෝරන්න',
+  'receptionist.allBarbers': 'ඕනෑම බාබර්වරයෙකු',
+  'receptionist.availableSlots': 'ඇති වේලා තීරයන්',
+  'receptionist.noSlotsFound': 'මෙම තේරීම සඳහා වේලා තීරයන් නොමැත',
 
   // Customer Booking Flow
   'booking.title': 'වේලාවක් වෙන්කරගන්න',

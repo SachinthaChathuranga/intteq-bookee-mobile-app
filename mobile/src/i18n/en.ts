@@ -62,6 +62,7 @@ export const en = {
   'nav.branches': 'Branches',
   'nav.services': 'Services',
   'nav.barbers': 'Barbers',
+  'nav.availability': 'Availability',
   'nav.exitWorkspace': 'Customer App',
 
   'explore.filterAll': 'All',
@@ -302,6 +303,14 @@ export const en = {
   'floor.noGeneralQueue': 'General queue is empty.',
   'floor.barbersCount': '{count} on shift',
   'floor.servingNow': 'Serving: {name}',
+
+  // Receptionist Availability Lookup
+  'receptionist.availabilityTitle': 'Check Availability',
+  'receptionist.selectServices': 'Select Services',
+  'receptionist.selectServicesHint': 'Select one or more services to check available slots',
+  'receptionist.allBarbers': 'Any Barber',
+  'receptionist.availableSlots': 'Available Slots',
+  'receptionist.noSlotsFound': 'No slots available for this selection',
 
   // Customer Booking Flow
   'booking.title': 'Book Appointment',

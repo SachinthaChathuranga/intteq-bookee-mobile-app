@@ -11,7 +11,7 @@ function signToken(userId: string): string {
 
 describe('Milestone 4: Barber Shifts & Queue System', () => {
   const app = createApp();
-  const PHONES = ['94770000001', '94770000002', '94770000003'];
+  const PHONES = ['94770000001', '94770000002', '94770000003', '94770000099'];
 
   let ownerToken: string;
   let ownerId: string;
@@ -287,7 +287,8 @@ describe('Milestone 4: Barber Shifts & Queue System', () => {
 
     // Attach customer user with phone to this entry
     const custRes = await pool.query<{ id: string }>(
-      "INSERT INTO users (phone, name) VALUES ('94770000099', 'Customer Phone') RETURNING id",
+      `INSERT INTO users (phone, name) VALUES ('94770000099', 'Customer Phone')
+       ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
     );
     await pool.query('UPDATE salon_queue_entries SET customer_id = $1 WHERE id = $2', [
       custRes.rows[0]!.id,

@@ -49,6 +49,7 @@ export type BarberStackParamList = {
 export type ReceptionistStackParamList = {
   ReceptionistHome: undefined;
   AddWalkIn: { branchId?: string; preselectedBarberId?: string };
+  AvailabilityLookup: undefined;
   ExitWorkspace?: undefined;
 };
 

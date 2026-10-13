@@ -63,6 +63,7 @@ export const ta: Translations = {
   'nav.branches': 'கிளைகள்',
   'nav.services': 'சேவைகள்',
   'nav.barbers': 'பார்பர்கள்',
+  'nav.availability': 'கிடைக்கும் தன்மை',
   'nav.exitWorkspace': 'வாடிக்கையாளர் ஆப்',
 
   'explore.filterAll': 'அனைத்தும்',
@@ -303,6 +304,14 @@ export const ta: Translations = {
   'floor.noGeneralQueue': 'பொது வரிசை காலியாக உள்ளது.',
   'floor.barbersCount': '{count} பணியில் உள்ளனர்',
   'floor.servingNow': 'தற்போது சேவை: {name}',
+
+  // Receptionist Availability Lookup
+  'receptionist.availabilityTitle': 'கிடைக்கும் நேரத்தை சரிபார்க்கவும்',
+  'receptionist.selectServices': 'சேவைகளைத் தேர்ந்தெடுக்கவும்',
+  'receptionist.selectServicesHint': 'கிடைக்கும் நேரங்களைச் சரிபார்க்க ஒன்று அல்லது அதற்கு மேற்பட்ட சேவைகளைத் தேர்ந்தெடுக்கவும்',
+  'receptionist.allBarbers': 'எந்தவொரு பார்பரும்',
+  'receptionist.availableSlots': 'கிடைக்கும் நேரங்கள்',
+  'receptionist.noSlotsFound': 'இந்தத் தேர்வுக்கு நேரங்கள் எதுவும் கிடைக்கவில்லை',
 
   // Customer Booking Flow
   'booking.title': 'முன்பதிவு செய்க',
