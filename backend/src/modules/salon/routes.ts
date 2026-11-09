@@ -7,6 +7,8 @@ import { smsService } from '../../services/sms/index.js';
 import { pool } from '../../db/pool.js';
 import { normalizePhone } from '../../utils/phone.js';
 import { findBranchById, findServicesByBranchId, isBranchOwnedByUser } from '../branch/repo.js';
+import { getUserDeviceTokens } from '../notifications/deviceTokenRepo.js';
+import { dispatchPushInBackground } from '../notifications/notificationDispatcher.js';
 import {
   autoReassignAll,
   callNext,
@@ -252,6 +254,30 @@ salonRouter.post('/branches/:branchId/shifts/start', async (req, res, next) => {
 
     const shift = await startShift(barberId, branchId);
     broadcastBranchEvent(branchId, { type: 'SHIFT_UPDATED', barberId });
+
+    // Notify customers who favourited this barber
+    void (async () => {
+      try {
+        const favs = await pool.query<{ customer_id: string; barber_name: string | null }>(
+          `SELECT f.customer_id, bu.name AS barber_name
+           FROM favourites f
+           JOIN users bu ON bu.id = f.target_id
+           WHERE f.type = 'BARBER' AND f.target_id = $1`,
+          [barberId],
+        );
+        for (const row of favs.rows) {
+          dispatchPushInBackground(
+            row.customer_id,
+            'favourite_barber_shift_started',
+            { barberName: row.barber_name || undefined },
+            { screen: 'CustomerHome' },
+          );
+        }
+      } catch (e) {
+        console.error('[Push] Failed to notify favourites on shift start:', e);
+      }
+    })();
+
     res.json({ shift });
   } catch (err) {
     next(err);
@@ -410,23 +436,35 @@ salonRouter.post('/branches/:branchId/queue/:entryId/request-cancel', async (req
       barberId,
     );
 
-    const message = `Barber ${barberName || 'Kasun'} is ending his shift. Please cancel your booking or move to another barber.`;
+    let sentPush = false;
+    let sentSms = false;
 
-    if (customerPhone) {
+    if (customerId) {
+      const tokens = await getUserDeviceTokens(customerId);
+      if (tokens.length > 0) {
+        dispatchPushInBackground(
+          customerId,
+          'shift_ending_request_cancel',
+          { barberName: barberName || undefined },
+          { screen: 'CustomerWait' },
+        );
+        sentPush = true;
+      }
+    }
+
+    // If customer has no app push tokens and has a verified phone, send SMS
+    if (!sentPush && customerPhone) {
+      const message = `Barber ${barberName || 'Kasun'} is ending his shift. Please cancel your booking or move to another barber.`;
       try {
         await smsService.sendSms(customerPhone, message);
+        sentSms = true;
       } catch (smsErr) {
         console.error('[SMS] Failed to send request-cancel SMS:', smsErr);
       }
     }
 
-    // TODO: Phase 1 Milestone 8: send push notification to customerId if exists
-    if (customerId) {
-      // Push notification hook placeholder
-    }
-
     broadcastBranchEvent(branchId, { type: 'QUEUE_UPDATED' });
-    res.json({ ok: true, sentSms: !!customerPhone });
+    res.json({ ok: true, sentPush, sentSms });
   } catch (err) {
     next(err);
   }
@@ -654,6 +692,32 @@ salonRouter.post(
       });
 
       broadcastBranchEvent(branchId, { type: 'APPOINTMENT_CREATED' });
+
+      void (async () => {
+        try {
+          const barberRes = await pool.query<{ name: string | null }>(
+            'SELECT name FROM users WHERE id = $1',
+            [appointment.barber_id],
+          );
+          const barberName = barberRes.rows[0]?.name || undefined;
+          const dateStr = new Date(appointment.start_at).toISOString().split('T')[0];
+          const timeStr = new Date(appointment.start_at).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          });
+
+          dispatchPushInBackground(
+            appointment.customer_id,
+            'appointment_confirmed',
+            { barberName, date: dateStr, time: timeStr },
+            { screen: 'Appointments', appointmentId: appointment.id },
+          );
+        } catch (e) {
+          console.error('[Push] Failed to dispatch appointment_confirmed:', e);
+        }
+      })();
+
       res.status(201).json({ appointment });
     } catch (err) {
       next(err);
@@ -672,6 +736,26 @@ salonRouter.post('/appointments/:id/cancel', async (req, res, next) => {
     const appointmentId = String(req.params.id);
     const result = await cancelAppointment(appointmentId, userId);
     broadcastBranchEvent(result.branch_id, { type: 'APPOINTMENT_UPDATED' });
+
+    void (async () => {
+      try {
+        const dateStr = new Date(result.start_at).toISOString().split('T')[0];
+        const timeStr = new Date(result.start_at).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        dispatchPushInBackground(
+          result.customer_id,
+          'appointment_cancelled',
+          { date: dateStr, time: timeStr },
+          { screen: 'Appointments', appointmentId: result.id },
+        );
+      } catch (e) {
+        console.error('[Push] Failed to dispatch appointment_cancelled:', e);
+      }
+    })();
+
     res.json({ success: true, appointment: result });
   } catch (err) {
     next(err);
@@ -688,6 +772,26 @@ salonRouter.post(
       const appointmentId = String(req.params.id);
       const result = await rescheduleAppointment(appointmentId, userId, req.body.startAt);
       broadcastBranchEvent(result.branch_id, { type: 'APPOINTMENT_UPDATED' });
+
+      void (async () => {
+        try {
+          const dateStr = new Date(result.start_at).toISOString().split('T')[0];
+          const timeStr = new Date(result.start_at).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          });
+          dispatchPushInBackground(
+            result.customer_id,
+            'appointment_rescheduled',
+            { date: dateStr, time: timeStr },
+            { screen: 'Appointments', appointmentId: result.id },
+          );
+        } catch (e) {
+          console.error('[Push] Failed to dispatch appointment_rescheduled:', e);
+        }
+      })();
+
       res.json({ success: true, appointment: result });
     } catch (err) {
       next(err);

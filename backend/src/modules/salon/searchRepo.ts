@@ -23,6 +23,7 @@ export interface SalonSearchResult {
   branch_name: string;
   address: string;
   phone: string | null;
+  cover_image_url: string | null;
   lat: number | null;
   lng: number | null;
   distance_km: number | null;
@@ -111,6 +112,7 @@ export async function searchSalonBranches(
       br.name AS branch_name,
       br.address,
       br.phone,
+      br.cover_image_url,
       br.lat,
       br.lng,
       ${distanceExpr},
@@ -166,6 +168,7 @@ export async function searchSalonBranches(
     branch_name: r.branch_name,
     address: r.address,
     phone: r.phone,
+    cover_image_url: r.cover_image_url ?? null,
     lat: r.lat ? parseFloat(r.lat) : null,
     lng: r.lng ? parseFloat(r.lng) : null,
     distance_km: r.distance_km !== null ? parseFloat(r.distance_km) : null,

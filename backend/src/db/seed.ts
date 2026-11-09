@@ -7,13 +7,38 @@ interface TestUserDef {
   phoneRaw: string;
   name: string;
   roleDescription: string;
+  avatarUrl?: string;
 }
 
 const TEST_USERS: TestUserDef[] = [
-  { phoneRaw: '0770000100', name: 'Nimal', roleDescription: 'Customer' },
-  { phoneRaw: '0770000200', name: 'Kasun', roleDescription: 'Owner' },
-  { phoneRaw: '0770000300', name: 'Amal', roleDescription: 'Barber' },
-  { phoneRaw: '0770000400', name: 'Saman', roleDescription: 'Receptionist' },
+  {
+    phoneRaw: '0770000100',
+    name: 'Nimal',
+    roleDescription: 'Customer',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1503443207922-dff7d543fd0e?w=400&h=400&fit=crop&crop=faces&q=80',
+  },
+  {
+    phoneRaw: '0770000200',
+    name: 'Kasun',
+    roleDescription: 'Owner',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop&crop=faces&q=80',
+  },
+  {
+    phoneRaw: '0770000300',
+    name: 'Amal',
+    roleDescription: 'Barber',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=faces&q=80',
+  },
+  {
+    phoneRaw: '0770000400',
+    name: 'Saman',
+    roleDescription: 'Receptionist',
+    avatarUrl:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&crop=faces&q=80',
+  },
   { phoneRaw: '0770000500', name: 'Super Admin', roleDescription: 'Super Admin' },
 ];
 
@@ -44,12 +69,14 @@ export async function runSeed() {
       if (!normalized) throw new Error(`Invalid phone number: ${u.phoneRaw}`);
 
       const { rows } = await client.query<{ id: string }>(
-        `INSERT INTO users (phone, name, is_app_user, language, theme)
-         VALUES ($1, $2, true, 'en', 'light')
+        `INSERT INTO users (phone, name, avatar_url, is_app_user, language, theme)
+         VALUES ($1, $2, $3, true, 'en', 'light')
          ON CONFLICT (phone) DO UPDATE
-         SET name = EXCLUDED.name, is_app_user = true
+         SET name = EXCLUDED.name,
+             avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+             is_app_user = true
          RETURNING id`,
-        [normalized, u.name],
+        [normalized, u.name, u.avatarUrl ?? null],
       );
       userMap[u.phoneRaw] = rows[0]!.id;
       console.log(`  👤 User [${u.roleDescription}]: ${u.name} (${u.phoneRaw} -> ${normalized})`);
@@ -94,8 +121,24 @@ export async function runSeed() {
 
     // 3. Branches: Colombo and Kandy
     const branchDefs = [
-      { name: 'Colombo', address: '123 Galle Road, Colombo 03', phone: '0112000001', lat: 6.9271, lng: 79.8612 },
-      { name: 'Kandy', address: '45 Peradeniya Road, Kandy', phone: '0812000002', lat: 7.2906, lng: 80.6337 },
+      {
+        name: 'Colombo',
+        address: '123 Galle Road, Colombo 03',
+        phone: '0112000001',
+        lat: 6.9271,
+        lng: 79.8612,
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1600948836101-f9ffda59d250?w=1200&h=800&fit=crop&crop=entropy&q=75',
+      },
+      {
+        name: 'Kandy',
+        address: '45 Peradeniya Road, Kandy',
+        phone: '0812000002',
+        lat: 7.2906,
+        lng: 80.6337,
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&h=800&fit=crop&crop=entropy&q=75',
+      },
     ];
 
     const branchMap: Record<string, string> = {};
@@ -109,15 +152,23 @@ export async function runSeed() {
       if (bRes.rows[0]) {
         branchId = bRes.rows[0].id;
         await client.query(
-          `UPDATE branches SET address = $1, phone = $2, lat = $3, lng = $4 WHERE id = $5`,
-          [bDef.address, bDef.phone, bDef.lat, bDef.lng, branchId],
+          `UPDATE branches SET address = $1, phone = $2, lat = $3, lng = $4, cover_image_url = $5 WHERE id = $6`,
+          [bDef.address, bDef.phone, bDef.lat, bDef.lng, bDef.coverImageUrl, branchId],
         );
       } else {
         const newBranch = await client.query<{ id: string }>(
-          `INSERT INTO branches (business_id, name, address, phone, lat, lng)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO branches (business_id, name, address, phone, lat, lng, cover_image_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id`,
-          [businessId, bDef.name, bDef.address, bDef.phone, bDef.lat, bDef.lng],
+          [
+            businessId,
+            bDef.name,
+            bDef.address,
+            bDef.phone,
+            bDef.lat,
+            bDef.lng,
+            bDef.coverImageUrl,
+          ],
         );
         branchId = newBranch.rows[0]!.id;
       }

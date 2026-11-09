@@ -9,6 +9,7 @@ import { usersRouter } from './modules/users/routes.js';
 import { config } from './config/index.js';
 import { ownerBranchRouter } from './modules/branch/routes.js';
 import { devRouter } from './modules/dev/routes.js';
+import { notificationsRouter } from './modules/notifications/notificationsRouter.js';
 import { salonRouter } from './modules/salon/routes.js';
 
 export function createApp() {
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/me', usersRouter);
   app.use('/owner', ownerBranchRouter);
   app.use('/salon', salonRouter);
+  app.use('/notifications', notificationsRouter);
 
   if (config.NODE_ENV !== 'production') {
     app.use('/dev', devRouter);

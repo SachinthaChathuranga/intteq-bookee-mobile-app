@@ -658,6 +658,7 @@ export interface CustomerAppointmentItem {
   id: string;
   branch_id: string;
   branch_name: string;
+  branch_cover_image_url?: string | null;
   business_name: string;
   barber_id: string;
   barber_name: string;
@@ -683,6 +684,7 @@ export async function getCustomerAppointments(
        a.id,
        a.branch_id,
        b.name AS branch_name,
+       b.cover_image_url AS branch_cover_image_url,
        biz.name AS business_name,
        a.barber_id,
        u.name AS barber_name,
@@ -720,6 +722,7 @@ export interface CustomerActiveQueueDetail {
   branch_id: string;
   branch_name: string;
   branch_address: string;
+  branch_cover_image_url?: string | null;
   business_name: string;
   queue_type: 'BARBER' | 'GENERAL';
   barber_id: string | null;
@@ -758,6 +761,7 @@ export async function findCustomerActiveQueue(
        qe.joined_at,
        b.name AS branch_name,
        b.address AS branch_address,
+       b.cover_image_url AS branch_cover_image_url,
        biz.name AS business_name,
        COALESCE(
          (SELECT json_agg(json_build_object('id', s.id, 'name', s.name, 'price', qes.price, 'duration_minutes', qes.duration_minutes))
@@ -865,6 +869,7 @@ export async function findCustomerActiveQueue(
     branch_id: row.branch_id,
     branch_name: row.branch_name,
     branch_address: addressStr,
+    branch_cover_image_url: row.branch_cover_image_url ?? null,
     business_name: row.business_name,
     queue_type: row.queue_type,
     barber_id: row.barber_id,
@@ -901,15 +906,23 @@ export async function cancelAppointment(
   actorId: string,
   isStaff: boolean = false,
   db: Queryable = pool,
-): Promise<{ id: string; branch_id: string; status: string }> {
+): Promise<{
+  id: string;
+  branch_id: string;
+  customer_id: string;
+  barber_id: string;
+  start_at: Date;
+  status: string;
+}> {
   const { rows } = await db.query<{
     id: string;
     branch_id: string;
     customer_id: string;
     barber_id: string;
+    start_at: Date;
     status: string;
   }>(
-    `SELECT id, branch_id, customer_id, barber_id, status FROM salon_appointments WHERE id = $1`,
+    `SELECT id, branch_id, customer_id, barber_id, start_at, status FROM salon_appointments WHERE id = $1`,
     [appointmentId],
   );
 
@@ -926,11 +939,18 @@ export async function cancelAppointment(
     throw new HttpError(400, 'CANNOT_CANCEL', `Cannot cancel appointment in status ${app.status}.`);
   }
 
-  const { rows: updateRows } = await db.query<{ id: string; branch_id: string; status: string }>(
+  const { rows: updateRows } = await db.query<{
+    id: string;
+    branch_id: string;
+    customer_id: string;
+    barber_id: string;
+    start_at: Date;
+    status: string;
+  }>(
     `UPDATE salon_appointments
      SET status = 'CANCELLED', updated_at = now()
      WHERE id = $1
-     RETURNING id, branch_id, status`,
+     RETURNING id, branch_id, customer_id, barber_id, start_at, status`,
     [appointmentId],
   );
 
@@ -946,6 +966,8 @@ export async function rescheduleAppointment(
 ): Promise<{
   id: string;
   branch_id: string;
+  customer_id: string;
+  barber_id: string;
   start_at: Date;
   end_at: Date;
   status: string;
@@ -987,6 +1009,8 @@ export async function rescheduleAppointment(
     const { rows: updateRows } = await db.query<{
       id: string;
       branch_id: string;
+      customer_id: string;
+      barber_id: string;
       start_at: Date;
       end_at: Date;
       status: string;
@@ -994,7 +1018,7 @@ export async function rescheduleAppointment(
       `UPDATE salon_appointments
        SET start_at = $1, end_at = $2, status = 'RESCHEDULED', updated_at = now()
        WHERE id = $3
-       RETURNING id, branch_id, start_at, end_at, status`,
+       RETURNING id, branch_id, customer_id, barber_id, start_at, end_at, status`,
       [startDate.toISOString(), endDate.toISOString(), appointmentId],
     );
 

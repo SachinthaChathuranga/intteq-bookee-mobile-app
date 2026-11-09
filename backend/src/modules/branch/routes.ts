@@ -32,6 +32,7 @@ const createBranchSchema = z.object({
   phone: z.string().trim().max(30).optional().nullable(),
   lat: z.number().optional().nullable(),
   lng: z.number().optional().nullable(),
+  cover_image_url: z.string().trim().max(500).optional().nullable(),
   working_hours: z.array(workingHourSchema).optional(),
 });
 
@@ -41,6 +42,7 @@ const updateBranchSchema = z.object({
   phone: z.string().trim().max(30).optional().nullable(),
   lat: z.number().optional().nullable(),
   lng: z.number().optional().nullable(),
+  cover_image_url: z.string().trim().max(500).optional().nullable(),
   working_hours: z.array(workingHourSchema).optional(),
 });
 

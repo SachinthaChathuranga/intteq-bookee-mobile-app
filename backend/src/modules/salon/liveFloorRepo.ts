@@ -1,6 +1,7 @@
 import type { Queryable } from '../../db/pool.js';
 import { pool, withTransaction } from '../../db/pool.js';
-import { findBarberQueue, type QueueEntryDetail } from './queueRepo.js';
+import { dispatchPushInBackground } from '../notifications/notificationDispatcher.js';
+import { findBarberQueue, notifyQueueAdvance, type QueueEntryDetail } from './queueRepo.js';
 import { findBarbersByBranchId } from './repo.js';
 import { findCurrentShift } from './shiftRepo.js';
 import { calculateWaitTimes, type WaitTimeSummary } from './walkInRepo.js';
@@ -160,7 +161,7 @@ export async function assignGeneralQueueEntry(
     duration_minutes: s.duration_minutes,
   }));
 
-  return {
+  const entryResult = {
     id: r.id,
     branch_id: r.branch_id,
     queue_type: r.queue_type,
@@ -183,4 +184,16 @@ export async function assignGeneralQueueEntry(
     total_price: services.reduce((acc: number, s: any) => acc + s.price, 0),
     total_duration: services.reduce((acc: number, s: any) => acc + s.duration_minutes, 0),
   };
+
+  if (r.customer_id) {
+    dispatchPushInBackground(
+      r.customer_id,
+      'general_queue_picked_up',
+      { barberName: r.barber_name || undefined },
+      { screen: 'CustomerWait' },
+    );
+  }
+  notifyQueueAdvance(targetBarberId, branchId).catch(() => {});
+
+  return entryResult;
 }

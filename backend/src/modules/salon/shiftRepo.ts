@@ -16,6 +16,7 @@ export interface OnShiftBarber {
   barber_id: string;
   name: string | null;
   phone: string;
+  avatar_url: string | null;
   status: 'ACTIVE' | 'PAUSED';
   shift_id: string;
 }
@@ -172,6 +173,7 @@ export async function findOnShiftBarbers(
        s.barber_id,
        u.name,
        u.phone,
+       u.avatar_url,
        s.status,
        s.id AS shift_id
      FROM salon_shifts s

@@ -1,5 +1,6 @@
 import type { Queryable } from '../../db/pool.js';
 import { pool, withTransaction } from '../../db/pool.js';
+import { dispatchPushInBackground } from '../notifications/notificationDispatcher.js';
 import { findOnShiftBarbers } from './shiftRepo.js';
 
 export interface QueueEntryServiceItem {
@@ -165,11 +166,27 @@ export async function findBarberQueue(
   };
 }
 
+export async function notifyQueueAdvance(barberId: string, branchId: string): Promise<void> {
+  const { rows } = await pool.query<{ customer_id: string | null }>(
+    `SELECT customer_id FROM salon_queue_entries
+     WHERE barber_id = $1 AND branch_id = $2 AND status = 'WAITING' AND customer_id IS NOT NULL
+     ORDER BY manual_position ASC NULLS LAST, joined_at ASC
+     LIMIT 2`,
+    [barberId, branchId],
+  );
+  if (rows[0]?.customer_id) {
+    dispatchPushInBackground(rows[0].customer_id, 'queue_next', {}, { screen: 'CustomerWait' });
+  }
+  if (rows[1]?.customer_id) {
+    dispatchPushInBackground(rows[1].customer_id, 'queue_one_ahead', {}, { screen: 'CustomerWait' });
+  }
+}
+
 export async function callNext(
   barberId: string,
   branchId: string,
 ): Promise<QueueEntryDetail | null> {
-  return withTransaction(async (client) => {
+  const result = await withTransaction(async (client) => {
     // 1. Check if already serving
     const currentServing = await client.query<{ id: string }>(
       `SELECT id FROM salon_queue_entries
@@ -233,8 +250,22 @@ export async function callNext(
       `${SELECT_QUEUE_DETAILS} WHERE qe.id = $1`,
       [entryId],
     );
-    return mapRawQueueRow(full.rows[0]!);
+    const detail = mapRawQueueRow(full.rows[0]!);
+    if (fromGeneral && detail.customer_id) {
+      dispatchPushInBackground(
+        detail.customer_id,
+        'general_queue_picked_up',
+        { barberName: detail.barber_name || undefined },
+        { screen: 'CustomerWait' },
+      );
+    }
+    return detail;
   });
+
+  if (result) {
+    notifyQueueAdvance(barberId, branchId).catch(() => {});
+  }
+  return result;
 }
 
 export async function completeService(
@@ -367,7 +398,16 @@ export async function reassignQueueEntry(
     `${SELECT_QUEUE_DETAILS} WHERE qe.id = $1`,
     [entryId],
   );
-  return full.rows[0] ? mapRawQueueRow(full.rows[0]) : null;
+  const detail = full.rows[0] ? mapRawQueueRow(full.rows[0]) : null;
+  if (detail?.customer_id) {
+    dispatchPushInBackground(
+      detail.customer_id,
+      'queue_reassigned',
+      { barberName: detail.barber_name || undefined },
+      { screen: 'CustomerWait' },
+    );
+  }
+  return detail;
 }
 
 export async function autoReassignAll(
@@ -381,8 +421,8 @@ export async function autoReassignAll(
     if (targets.length === 0) throw new Error('NO_AVAILABLE_BARBERS');
 
     // 2. Find waiting queue entries for caller
-    const waitingRes = await client.query<{ id: string }>(
-      `SELECT id FROM salon_queue_entries
+    const waitingRes = await client.query<{ id: string; customer_id: string | null }>(
+      `SELECT id, customer_id FROM salon_queue_entries
        WHERE barber_id = $1 AND branch_id = $2 AND status = 'WAITING'
        ORDER BY manual_position ASC NULLS LAST, joined_at ASC`,
       [callerBarberId, branchId],
@@ -397,6 +437,16 @@ export async function autoReassignAll(
          WHERE id = $3`,
         [targetBarber.barber_id, callerBarberId, item.id],
       );
+
+      if (item.customer_id) {
+        dispatchPushInBackground(
+          item.customer_id,
+          'queue_reassigned',
+          { barberName: targetBarber.name || undefined },
+          { screen: 'CustomerWait' },
+        );
+      }
+
       targetIdx++;
     }
 

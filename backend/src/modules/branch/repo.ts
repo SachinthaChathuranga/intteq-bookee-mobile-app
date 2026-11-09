@@ -9,6 +9,7 @@ export interface BranchRow {
   lat: number | null;
   lng: number | null;
   phone: string | null;
+  cover_image_url: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -72,15 +73,30 @@ export async function findBranchById(branchId: string, db: Queryable = pool): Pr
 
 export async function createBranch(
   businessId: string,
-  data: { name: string; address: string; phone?: string | null; lat?: number | null; lng?: number | null },
+  data: {
+    name: string;
+    address: string;
+    phone?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    cover_image_url?: string | null;
+  },
   hours?: WorkingHoursInput[],
 ): Promise<BranchRow> {
   return withTransaction(async (client) => {
     const { rows } = await client.query<BranchRow>(
-      `INSERT INTO branches (business_id, name, address, phone, lat, lng)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO branches (business_id, name, address, phone, lat, lng, cover_image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [businessId, data.name, data.address, data.phone ?? null, data.lat ?? null, data.lng ?? null],
+      [
+        businessId,
+        data.name,
+        data.address,
+        data.phone ?? null,
+        data.lat ?? null,
+        data.lng ?? null,
+        data.cover_image_url ?? null,
+      ],
     );
     const branch = rows[0]!;
 
@@ -109,7 +125,14 @@ export async function createBranch(
 
 export async function updateBranch(
   branchId: string,
-  data: Partial<{ name: string; address: string; phone: string | null; lat: number | null; lng: number | null }>,
+  data: Partial<{
+    name: string;
+    address: string;
+    phone: string | null;
+    lat: number | null;
+    lng: number | null;
+    cover_image_url: string | null;
+  }>,
   db: Queryable = pool,
 ): Promise<BranchRow | null> {
   const { rows } = await db.query<BranchRow>(
@@ -118,10 +141,19 @@ export async function updateBranch(
        address = COALESCE($3, address),
        phone = COALESCE($4, phone),
        lat = COALESCE($5, lat),
-       lng = COALESCE($6, lng)
+       lng = COALESCE($6, lng),
+       cover_image_url = COALESCE($7, cover_image_url)
      WHERE id = $1
      RETURNING *`,
-    [branchId, data.name ?? null, data.address ?? null, data.phone ?? null, data.lat ?? null, data.lng ?? null],
+    [
+      branchId,
+      data.name ?? null,
+      data.address ?? null,
+      data.phone ?? null,
+      data.lat ?? null,
+      data.lng ?? null,
+      data.cover_image_url ?? null,
+    ],
   );
   return rows[0] ?? null;
 }
