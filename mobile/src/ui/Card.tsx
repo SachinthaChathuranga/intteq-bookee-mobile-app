@@ -1,142 +1,112 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import {
-  Image,
+  Animated,
   Pressable,
-  StyleProp,
   StyleSheet,
   View,
-  ViewStyle,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { palette } from '../theme/palette';
 import { lightImpact } from './haptics';
-import { radius, spacing } from './tokens';
+import { getShadow, radius, spacing } from './tokens';
 
-interface Props {
+export type CardVariant = 'elevated' | 'outlined' | 'subtle' | 'selected';
+
+export interface CardProps {
   children: ReactNode;
+  variant?: CardVariant;
+  padding?: keyof typeof spacing | number;
   onPress?: () => void;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
-  noPadding?: boolean;
-  coverImage?: string;
-  coverHeight?: number;
-  floatingBadge?: ReactNode;
-  floatingAction?: ReactNode;
-  highlighted?: boolean;
 }
 
 export function Card({
   children,
+  variant = 'elevated',
+  padding = 'lg',
   onPress,
+  disabled = false,
   style,
-  noPadding = false,
-  coverImage,
-  coverHeight = 160,
-  floatingBadge,
-  floatingAction,
-  highlighted = false,
-}: Props) {
+}: CardProps) {
   const { colors } = useTheme();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePress = () => {
-    if (onPress) {
-      lightImpact();
-      onPress();
-    }
+  const padValue = typeof padding === 'number' ? padding : spacing[padding];
+
+  const bgMap: Record<CardVariant, string> = {
+    elevated: colors.card,
+    outlined: colors.surface,
+    subtle: colors.inputBackground,
+    selected: colors.primaryLight,
   };
 
-  const content = (
-    <>
-      {coverImage ? (
-        <View style={styles.coverWrapper}>
-          <Image
-            source={{ uri: coverImage }}
-            style={[styles.cover, { height: coverHeight }]}
-            resizeMode="cover"
-          />
-          {floatingBadge ? <View style={styles.floatingBadge}>{floatingBadge}</View> : null}
-          {floatingAction ? <View style={styles.floatingAction}>{floatingAction}</View> : null}
-        </View>
-      ) : null}
-      <View style={!noPadding ? styles.padded : undefined}>{children}</View>
-    </>
-  );
+  const borderMap: Record<CardVariant, string> = {
+    elevated: colors.border,
+    outlined: colors.border,
+    subtle: 'transparent',
+    selected: colors.primary,
+  };
 
-  const cardBg = highlighted ? colors.primaryLight : colors.surface;
-  const cardBorder = highlighted ? colors.primary : colors.border;
+  const cardStyle: StyleProp<ViewStyle> = [
+    styles.base,
+    {
+      backgroundColor: bgMap[variant],
+      borderColor: borderMap[variant],
+      borderWidth: variant === 'subtle' ? 0 : variant === 'selected' ? 1.5 : 1,
+      padding: padValue,
+    },
+    variant === 'elevated' ? getShadow(colors, 'sm') : undefined,
+    disabled && { opacity: 0.55 },
+    style,
+  ];
 
   if (onPress) {
     return (
-      <Pressable
-        accessibilityRole="button"
-        onPress={handlePress}
-        style={({ pressed }) => [
-          styles.base,
-          {
-            backgroundColor: cardBg,
-            borderColor: cardBorder,
-            borderWidth: highlighted ? 1.5 : 1,
-            opacity: pressed ? 0.88 : 1,
-            transform: [{ scale: pressed ? 0.99 : 1 }],
-          },
-          style,
-        ]}
-      >
-        {content}
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={disabled}
+          onPressIn={() => {
+            if (disabled) return;
+            Animated.spring(scaleAnim, {
+              toValue: 0.985,
+              useNativeDriver: true,
+              speed: 50,
+              bounciness: 3,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(scaleAnim, {
+              toValue: 1,
+              useNativeDriver: true,
+              speed: 50,
+              bounciness: 3,
+            }).start();
+          }}
+          onPress={() => {
+            if (disabled) return;
+            lightImpact();
+            onPress();
+          }}
+          style={cardStyle}
+        >
+          {children}
+        </Pressable>
+      </Animated.View>
     );
   }
 
-  return (
-    <View
-      style={[
-        styles.base,
-        {
-          backgroundColor: cardBg,
-          borderColor: cardBorder,
-          borderWidth: highlighted ? 1.5 : 1,
-        },
-        style,
-      ]}
-    >
-      {content}
-    </View>
-  );
+  return <View style={cardStyle}>{children}</View>;
+}
+
+export function SurfaceCard(props: CardProps) {
+  return <Card {...props} variant={props.variant ?? 'outlined'} />;
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: palette.neutral[900],
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  coverWrapper: {
-    width: '100%',
-    position: 'relative',
-  },
-  cover: {
-    width: '100%',
-  },
-  floatingBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 2,
-  },
-  floatingAction: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 2,
-  },
-  padded: {
-    padding: spacing.lg,
-    gap: spacing.sm,
+    borderRadius: radius.lg,
   },
 });
-
-

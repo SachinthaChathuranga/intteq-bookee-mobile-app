@@ -3,20 +3,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
-  RefreshControlProps,
+  type RefreshControlProps,
   ScrollView,
-  StyleProp,
+  type StyleProp,
   StyleSheet,
   View,
-  ViewStyle,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 import { spacing } from './tokens';
 
-interface Props {
+export interface ScreenProps {
   children: ReactNode;
   scrollable?: boolean;
+  scroll?: boolean;
+  padded?: boolean;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   refreshControl?: ReactElement<RefreshControlProps>;
@@ -29,7 +31,9 @@ interface Props {
 
 export function Screen({
   children,
-  scrollable = false,
+  scrollable,
+  scroll,
+  padded = true,
   style,
   contentContainerStyle,
   refreshControl,
@@ -38,10 +42,11 @@ export function Screen({
   stickyFooter,
   includeTopInset = true,
   includeBottomInset = true,
-}: Props) {
+}: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
+  const isScrollable = scroll ?? scrollable ?? false;
   const topInset = includeTopInset ? insets.top : 0;
   const bottomInset = includeBottomInset ? insets.bottom : 0;
 
@@ -72,13 +77,15 @@ export function Screen({
           style,
         ]}
       >
-        {scrollable ? (
+        {isScrollable ? (
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={[
-              styles.scrollContent,
+              padded && styles.scrollContent,
               contentContainerStyle,
-              stickyFooter ? { paddingBottom: spacing.lg } : { paddingBottom: bottomInset + spacing.lg },
+              stickyFooter
+                ? { paddingBottom: spacing.lg }
+                : { paddingBottom: bottomInset + spacing.lg },
             ]}
             keyboardShouldPersistTaps="handled"
             refreshControl={effectiveRefreshControl}
@@ -86,9 +93,16 @@ export function Screen({
           >
             {children}
           </ScrollView>
-
         ) : (
-          <View style={[styles.staticContent, contentContainerStyle]}>{children}</View>
+          <View
+            style={[
+              styles.staticContent,
+              padded && styles.staticPadded,
+              contentContainerStyle,
+            ]}
+          >
+            {children}
+          </View>
         )}
 
         {stickyFooter ? (
@@ -126,6 +140,8 @@ const styles = StyleSheet.create({
   },
   staticContent: {
     flex: 1,
+  },
+  staticPadded: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },

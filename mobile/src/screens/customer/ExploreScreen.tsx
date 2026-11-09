@@ -1,66 +1,88 @@
-import { Ionicons } from '@expo/vector-icons';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import {
   addCustomerFavourite,
   fetchCustomerFavourites,
   fetchSalons,
   removeCustomerFavourite,
+  type SalonSearchResult,
 } from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
+import type { CustomerStackParamList, CustomerTabParamList } from '../../navigation/types';
 import { useTheme } from '../../theme/ThemeProvider';
-import { palette } from '../../theme/palette';
 import {
-  Badge,
-  Card,
   Chip,
   EmptyState,
-  Input,
-  RatingBadge,
+  ErrorState,
+  SalonCard,
   Screen,
+  ScreenHeader,
+  SearchInput,
   SkeletonCard,
-  haptics,
-  radius,
   spacing,
 } from '../../ui';
 import { formatCurrency } from '../../utils/format';
 
-const SALON_IMAGE_COVERS = [
-  'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=80',
-];
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<CustomerTabParamList, 'ExploreTab'>,
+  NativeStackScreenProps<CustomerStackParamList>
+>;
 
-interface Props {
-  navigation: {
-    navigate: (screen: string, params?: any) => void;
-  };
-}
+type FilterCategory = 'all' | 'haircut' | 'beard' | 'kids';
 
-export function ExploreScreen({ navigation }: Props) {
+export function ExploreScreen({ route, navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'haircut' | 'beard' | 'kids'>('all');
-
   const queryClient = useQueryClient();
+
+  const initialQuery = route.params?.initialQuery ?? '';
+  const [searchText, setSearchText] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
+
+  useEffect(() => {
+    if (route.params?.initialQuery !== undefined) {
+      setSearchText(route.params.initialQuery);
+      setDebouncedQuery(route.params.initialQuery);
+    }
+  }, [route.params?.initialQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchText.trim());
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  const salonsQuery = useQuery({
+    queryKey: ['salons', debouncedQuery],
+    queryFn: () => fetchSalons({ query: debouncedQuery || undefined }),
+  });
+
   const favouritesQuery = useQuery({
     queryKey: ['customer-favourites'],
     queryFn: fetchCustomerFavourites,
   });
 
-  const favouriteSet = new Set(favouritesQuery.data?.map((f) => f.target_id) ?? []);
-
-  const toggleFavouriteMutation = useMutation({
-    mutationFn: async (targetId: string) => {
-      if (favouriteSet.has(targetId)) {
-        await removeCustomerFavourite('SALON', targetId);
+  const toggleFavMutation = useMutation({
+    mutationFn: async ({
+      type,
+      targetId,
+      isFav,
+    }: {
+      type: 'SALON' | 'BARBER';
+      targetId: string;
+      isFav: boolean;
+    }) => {
+      if (isFav) {
+        await removeCustomerFavourite(type, targetId);
       } else {
-        await addCustomerFavourite('SALON', targetId);
+        await addCustomerFavourite(type, targetId);
       }
     },
     onSuccess: () => {
@@ -68,259 +90,199 @@ export function ExploreScreen({ navigation }: Props) {
     },
   });
 
-  const filterKeywords: Record<'all' | 'haircut' | 'beard' | 'kids', string> = {
-    all: '',
-    haircut: 'hair',
-    beard: 'beard',
-    kids: 'kid',
-  };
-
-  const effectiveQuery = searchTerm.trim() || filterKeywords[selectedFilter] || undefined;
-
-  const salonsQuery = useQuery({
-    queryKey: ['customer-salons-search', effectiveQuery],
-    queryFn: () => fetchSalons({ query: effectiveQuery }),
-  });
+  const favSalonIds = useMemo(() => {
+    const list = favouritesQuery.data ?? [];
+    return new Set(list.filter((f) => f.type === 'SALON').map((f) => f.target_id));
+  }, [favouritesQuery.data]);
 
   const salons = salonsQuery.data?.salons ?? [];
 
-  const toggleFavorite = (id: string) => {
-    haptics.light();
-    toggleFavouriteMutation.mutate(id);
+  const handleCategorySelect = (cat: FilterCategory, keyword: string) => {
+    setActiveCategory(cat);
+    setSearchText(keyword);
+    setDebouncedQuery(keyword);
+  };
+
+  const renderSalonCard = ({ item }: { item: SalonSearchResult }) => {
+    const isFav = favSalonIds.has(item.id);
+    const minPrice =
+      item.services.length > 0
+        ? Math.min(...item.services.map((s) => s.price))
+        : null;
+
+    return (
+      <SalonCard
+        businessName={item.business_name}
+        branchName={item.branch_name}
+        address={item.address}
+        activeBarbersCount={item.active_barbers_count}
+        activeBarbersLabel={t('home.barbersCount', { count: item.active_barbers_count })}
+        services={item.services}
+        startingPriceLabel={
+          minPrice !== null
+            ? t('explore.fromPrice', { price: formatCurrency(minPrice) })
+            : undefined
+        }
+        isFavourite={isFav}
+        onToggleFavourite={() =>
+          toggleFavMutation.mutate({
+            type: 'SALON',
+            targetId: item.id,
+            isFav,
+          })
+        }
+        onPress={() =>
+          navigation.navigate('Booking', {
+            branchId: item.id,
+            branchName: item.branch_name,
+            businessName: item.business_name,
+            address: item.address,
+            phone: item.phone,
+            workingHours: item.working_hours,
+          })
+        }
+      />
+    );
   };
 
   return (
-    <Screen
-      scrollable
-      refreshing={salonsQuery.isRefetching}
-      onRefresh={() => salonsQuery.refetch()}
-      contentContainerStyle={styles.container}
-    >
-      {/* Title */}
-      <View style={styles.header}>
-        <AppText variant="title" style={styles.title}>
-          {t('explore.title')}
-        </AppText>
-        <AppText variant="caption" style={{ color: colors.textMuted }}>
-          {t('explore.placeholder')}
-        </AppText>
-      </View>
+    <Screen scroll={false}>
+      <View style={styles.container}>
+        <ScreenHeader title={t('explore.title')} subtitle={t('explore.placeholder')} />
 
-      {/* Pill Search Input with Right Magnifying Glass */}
-      <Input
-        placeholder={t('explore.searchPlaceholder')}
-        value={searchTerm}
-        onChangeText={setSearchTerm}
-        onClear={() => setSearchTerm('')}
-        rightIcon={<Ionicons name="search" size={20} color={colors.textMuted} />}
-        clearable
-        pill
-      />
-
-      {/* Filter Chips Horizontal Row */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsRow}
-      >
-        <Chip
-          label={t('explore.filterAll')}
-          selected={selectedFilter === 'all'}
-          onPress={() => setSelectedFilter('all')}
-        />
-        <Chip
-          label={t('explore.filterHaircut')}
-          selected={selectedFilter === 'haircut'}
-          onPress={() => setSelectedFilter('haircut')}
-        />
-        <Chip
-          label={t('explore.filterBeard')}
-          selected={selectedFilter === 'beard'}
-          onPress={() => setSelectedFilter('beard')}
-        />
-        <Chip
-          label={t('explore.filterKids')}
-          selected={selectedFilter === 'kids'}
-          onPress={() => setSelectedFilter('kids')}
-        />
-      </ScrollView>
-
-      {/* Results Header */}
-      <View style={styles.resultsHeader}>
-        <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '600' }}>
-          {searchTerm.trim()
-            ? `Results for "${searchTerm.trim()}"`
-            : `${salons.length} salons nearby`}
-        </AppText>
-        <Badge label={String(salons.length)} variant="primary" />
-      </View>
-
-      {/* List State */}
-      {salonsQuery.isLoading ? (
-        <View style={{ gap: spacing.lg }}>
-          <SkeletonCard height={220} />
-          <SkeletonCard height={220} />
-        </View>
-      ) : salons.length === 0 ? (
-        <EmptyState
-          icon="search-outline"
-          title={t('explore.empty')}
-          description={t('explore.emptySub')}
-          actionLabel="Clear Search"
-          onAction={() => {
-            setSearchTerm('');
-            setSelectedFilter('all');
+        <SearchInput
+          placeholder={t('explore.searchPlaceholder')}
+          value={searchText}
+          onChangeText={(txt) => {
+            setSearchText(txt);
+            if (!txt) setActiveCategory('all');
+          }}
+          onClear={() => {
+            setSearchText('');
+            setDebouncedQuery('');
+            setActiveCategory('all');
           }}
         />
-      ) : (
-        salons.map((salon, index) => {
-          const minPrice =
-            salon.services.length > 0
-              ? Math.min(...salon.services.map((s) => s.price))
-              : null;
-          const coverImage = SALON_IMAGE_COVERS[index % SALON_IMAGE_COVERS.length];
 
-          return (
-            <Card
-              key={salon.id}
-              coverImage={coverImage}
-              coverHeight={160}
-              floatingBadge={<RatingBadge rating="4.7" />}
-              floatingAction={
-                <Pressable
-                  onPress={() => toggleFavorite(salon.id)}
-                  style={[styles.floatingHeartBtn, { backgroundColor: colors.surface }]}
-                >
-                  <Ionicons
-                    name={favouriteSet.has(salon.id) ? 'heart' : 'heart-outline'}
-                    size={18}
-                    color={favouriteSet.has(salon.id) ? colors.primary : colors.textMuted}
-                  />
-                </Pressable>
-              }
-              onPress={() => {
-                haptics.light();
-                navigation.navigate('Booking', { branchId: salon.id, initialStep: 1 });
-              }}
-              style={styles.salonCard}
-            >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText variant="heading" style={{ fontSize: 18 }}>
-                    {salon.business_name}
-                  </AppText>
-                  <View style={styles.locationRow}>
-                    <Ionicons name="location-sharp" size={14} color={colors.primary} />
-                    <AppText
-                      variant="caption"
-                      style={{ color: colors.primary, fontWeight: '700' }}
-                    >
-                      {salon.branch_name}
-                    </AppText>
-                  </View>
+        <View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterStrip}
+          >
+            <Chip
+              label={t('explore.filterAll')}
+              selected={activeCategory === 'all' && !debouncedQuery}
+              leftIcon="sparkles-outline"
+              onPress={() => handleCategorySelect('all', '')}
+            />
+            <Chip
+              label={t('explore.filterHaircut')}
+              selected={activeCategory === 'haircut'}
+              leftIcon="cut-outline"
+              onPress={() => handleCategorySelect('haircut', 'Haircut')}
+            />
+            <Chip
+              label={t('explore.filterBeard')}
+              selected={activeCategory === 'beard'}
+              leftIcon="man-outline"
+              onPress={() => handleCategorySelect('beard', 'Beard')}
+            />
+            <Chip
+              label={t('explore.filterKids')}
+              selected={activeCategory === 'kids'}
+              leftIcon="happy-outline"
+              onPress={() => handleCategorySelect('kids', 'Kids')}
+            />
+          </ScrollView>
+        </View>
+
+        {!salonsQuery.isLoading && !salonsQuery.isError ? (
+          <View style={styles.resultsBar}>
+            <AppText variant="label" style={{ color: colors.textSecondary }}>
+              {debouncedQuery
+                ? t('explore.resultsFor', { query: debouncedQuery, count: salons.length })
+                : t('explore.nearbyCount', { count: salons.length })}
+            </AppText>
+          </View>
+        ) : null}
+
+        {salonsQuery.isError ? (
+          <ErrorState
+            title={t('common.error.generic')}
+            description={t('common.error.network')}
+            retryLabel={t('common.retry')}
+            onRetry={() => {
+              void salonsQuery.refetch();
+            }}
+          />
+        ) : (
+          <FlatList
+            data={salons}
+            keyExtractor={(item) => item.id}
+            renderItem={renderSalonCard}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={salonsQuery.isRefetching}
+                onRefresh={() => {
+                  void salonsQuery.refetch();
+                }}
+                tintColor={colors.primary}
+              />
+            }
+            ListEmptyComponent={
+              salonsQuery.isLoading ? (
+                <View style={styles.skeletonWrap}>
+                  <SkeletonCard />
+                  <SkeletonCard />
+                  <SkeletonCard />
                 </View>
-
-                {salon.distance_km !== null ? (
-                  <Badge label={`${salon.distance_km} km`} variant="primary" />
-                ) : salon.active_barbers_count > 0 ? (
-                  <Badge label={`${salon.active_barbers_count} on shift`} variant="success" />
-                ) : null}
-              </View>
-
-              <AppText variant="caption" style={{ color: colors.textMuted }}>
-                {salon.address}
-              </AppText>
-
-              {/* Services info footer */}
-              <View
-                style={[
-                  styles.cardFooter,
-                  { borderTopColor: colors.border, borderTopWidth: 1 },
-                ]}
-              >
-                <View style={styles.serviceMeta}>
-                  <Ionicons name="cut-outline" size={16} color={colors.textMuted} />
-                  <AppText variant="caption" style={{ fontWeight: '600' }}>
-                    {t('explore.servicesCount', { count: salon.services.length })}
-                  </AppText>
-                </View>
-
-                {minPrice !== null ? (
-                  <AppText
-                    variant="caption"
-                    style={{ color: colors.primary, fontWeight: '800', fontSize: 13 }}
-                  >
-                    {t('explore.fromPrice', { price: formatCurrency(minPrice) })}
-                  </AppText>
-                ) : null}
-              </View>
-            </Card>
-          );
-        })
-      )}
+              ) : (
+                <EmptyState
+                  icon="search-outline"
+                  title={t('explore.empty')}
+                  description={t('explore.emptySub')}
+                  actionLabel={debouncedQuery ? t('explore.clearSearch') : undefined}
+                  onActionPress={
+                    debouncedQuery
+                      ? () => {
+                          setSearchText('');
+                          setDebouncedQuery('');
+                          setActiveCategory('all');
+                        }
+                      : undefined
+                  }
+                />
+              )
+            }
+          />
+        )}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    gap: spacing.md,
+  },
+  filterStrip: {
+    gap: spacing.sm,
+    paddingVertical: 2,
+  },
+  resultsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  listContent: {
+    gap: spacing.md,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
   },
-  header: {
-    gap: 4,
-    marginTop: spacing.xs,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  chipsRow: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  salonCard: {
-    gap: spacing.sm,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  serviceMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  floatingHeartBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: palette.neutral[900],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  skeletonWrap: {
+    gap: spacing.md,
   },
 });

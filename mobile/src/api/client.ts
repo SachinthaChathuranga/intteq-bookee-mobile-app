@@ -20,14 +20,19 @@ async function rawRequest(path: string, { method = 'GET', body, auth = true }: R
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = useAuthStore.getState().accessToken;
   if (auth && token) headers.Authorization = `Bearer ${token}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     return await fetch(`${API_URL}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch {
     throw new ApiError(0, 'NETWORK_ERROR');
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

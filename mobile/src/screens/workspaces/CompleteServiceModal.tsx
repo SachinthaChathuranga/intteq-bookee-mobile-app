@@ -1,168 +1,226 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import type { CompleteServiceInput, QueueEntry } from '../../api/barber';
+import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { completeService } from '../../api/barber';
 import { AppText } from '../../components/AppText';
-import { BottomSheet, Button, Input } from '../../ui';
 import { useT } from '../../i18n';
+import type { BarberStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useTheme } from '../../theme/ThemeProvider';
+import {
+  Badge,
+  Button,
+  Card,
+  Divider,
+  Input,
+  Screen,
+  haptics,
+  radius,
+  spacing,
+  useToast,
+} from '../../ui';
+import { formatCurrency } from '../../utils/format';
 
-interface Props {
-  visible: boolean;
-  entry: QueueEntry | null;
-  onClose: () => void;
-  onSubmit: (data: CompleteServiceInput) => void;
-  loading?: boolean;
-}
+type Props = NativeStackScreenProps<BarberStackParamList, 'CompleteService'>;
 
-export function CompleteServiceModal({ visible, entry, onClose, onSubmit, loading }: Props) {
+const PAYMENT_METHODS: {
+  key: 'CASH' | 'CARD' | 'TRANSFER';
+  icon: keyof typeof Ionicons.glyphMap;
+  labelKey: 'payment.cash' | 'payment.card' | 'payment.transfer';
+}[] = [
+  { key: 'CASH', icon: 'cash-outline', labelKey: 'payment.cash' },
+  { key: 'CARD', icon: 'card-outline', labelKey: 'payment.card' },
+  { key: 'TRANSFER', icon: 'swap-horizontal-outline', labelKey: 'payment.transfer' },
+];
+
+export function CompleteServiceModal({ route, navigation }: Props) {
+  const { branchId, entry } = route.params;
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
-  const [amount, setAmount] = useState('1000');
-  const [tip, setTip] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'TRANSFER'>('CASH');
+  const [amount, setAmount] = useState(String(entry.total_price || 0));
+  const [method, setMethod] = useState<'CASH' | 'CARD' | 'TRANSFER'>('CASH');
+  const [tip, setTip] = useState('0');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (entry) {
-      setAmount(String(entry.total_price || 1000));
-      setTip('');
-      setPaymentMethod('CASH');
-      setError(null);
-    }
-  }, [entry]);
-
-  const handleSubmit = () => {
-    const numAmount = parseFloat(amount);
-    const numTip = tip.trim() ? parseFloat(tip) : 0;
-
-    if (isNaN(numAmount) || numAmount <= 0) {
-      setError('Valid amount is required');
-      return;
-    }
-    if (isNaN(numTip) || numTip < 0) {
-      setError('Valid tip amount is required');
-      return;
-    }
-
-    onSubmit({
-      amount: numAmount,
-      payment_method: paymentMethod,
-      tip: numTip > 0 ? numTip : undefined,
-    });
-  };
-
-  if (!entry) return null;
-
-  const customerName = entry.walk_in_name || entry.customer_name || entry.token_number || 'Customer';
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const amtNum = parseFloat(amount);
+      const tipNum = parseFloat(tip || '0');
+      if (isNaN(amtNum) || amtNum < 0) {
+        throw new Error('Valid amount is required');
+      }
+      return await completeService(branchId, entry.id, {
+        amount: amtNum,
+        payment_method: method,
+        tip: isNaN(tipNum) ? 0 : tipNum,
+      });
+    },
+    onSuccess: (data) => {
+      haptics.success();
+      queryClient.invalidateQueries({ queryKey: ['barber-queue', branchId] });
+      queryClient.invalidateQueries({ queryKey: ['barber-shift', branchId] });
+      showToast({
+        title: t('common.done'),
+        message: t('payment.commissionPreview', {
+          amount: formatCurrency(data.commission_amount),
+        }),
+        tone: 'success',
+      });
+      navigation.goBack();
+    },
+    onError: (err: any) => {
+      setError(err?.message || t('common.error.generic'));
+    },
+  });
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={t('payment.title')}>
-      <View style={styles.sheetContent}>
-        <AppText variant="body" style={{ fontWeight: '700', fontSize: 16 }}>
-          {customerName}
-        </AppText>
+    <View style={styles.flex}>
+      <WorkspaceHeader title={t('payment.title')} onBack={() => navigation.goBack()} />
+      <Screen scroll={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Customer & Services Summary */}
+          <Card variant="elevated" padding="lg">
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText variant="heading2">
+                  {entry.customer_name || entry.walk_in_name || 'Walk-in'}
+                </AppText>
+                <AppText variant="caption" style={{ color: colors.textSecondary }}>
+                  {entry.services.map((s) => s.name).join(' • ')}
+                </AppText>
+              </View>
+              {entry.token_number ? (
+                <Badge label={`#${entry.token_number}`} tone="primary" />
+              ) : null}
+            </View>
+            <Divider spacingVertical="md" />
+            <View style={styles.rowBetween}>
+              <AppText variant="caption">{t('booking.total')}</AppText>
+              <AppText variant="numeric" style={{ color: colors.primary }}>
+                {formatCurrency(parseFloat(amount) || 0)}
+              </AppText>
+            </View>
+          </Card>
 
-        <Input
-          label={t('payment.amount')}
-          keyboardType="numeric"
-          value={amount}
-          onChangeText={(txt) => {
-            setAmount(txt);
-            setError(null);
-          }}
-        />
+          <Input
+            label={t('payment.amount')}
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={(txt) => {
+              setAmount(txt);
+              setError(null);
+            }}
+            leftIcon="pricetag-outline"
+          />
 
-        <View style={styles.section}>
-          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '600' }}>
-            {t('payment.method')}
-          </AppText>
-          <View style={styles.methodRow}>
-            {(['CASH', 'CARD', 'TRANSFER'] as const).map((method) => {
-              const isSelected = paymentMethod === method;
-              const label =
-                method === 'CASH'
-                  ? t('payment.cash')
-                  : method === 'CARD'
-                  ? t('payment.card')
-                  : t('payment.transfer');
-
-              return (
-                <TouchableOpacity
-                  key={method}
-                  onPress={() => setPaymentMethod(method)}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.methodBtn,
-                    {
-                      backgroundColor: isSelected ? colors.primary : colors.background,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <AppText
-                    variant="caption"
-                    style={{
-                      color: isSelected ? colors.onPrimary : colors.text,
-                      fontWeight: '700',
+          <View style={styles.section}>
+            <AppText variant="label" style={{ color: colors.textSecondary }}>
+              {t('payment.method')}
+            </AppText>
+            <View style={styles.methodGrid}>
+              {PAYMENT_METHODS.map(({ key: m, icon, labelKey }) => {
+                const selected = method === m;
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => {
+                      haptics.selection();
+                      setMethod(m);
                     }}
+                    style={[
+                      styles.methodTile,
+                      {
+                        backgroundColor: selected
+                          ? colors.primaryLight
+                          : colors.surface,
+                        borderColor: selected ? colors.primary : colors.border,
+                        borderWidth: selected ? 1.5 : 1,
+                      },
+                    ]}
                   >
-                    {label}
-                  </AppText>
-                </TouchableOpacity>
-              );
-            })}
+                    <Ionicons
+                      name={icon}
+                      size={22}
+                      color={selected ? colors.primary : colors.textSecondary}
+                    />
+                    <AppText
+                      variant="label"
+                      style={{
+                        color: selected ? colors.primary : colors.text,
+                        fontWeight: selected ? '700' : '600',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {t(labelKey)}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
 
-        <Input
-          label={t('payment.tip')}
-          placeholder="0"
-          keyboardType="numeric"
-          value={tip}
-          onChangeText={setTip}
-        />
+          <Input
+            label={t('payment.tip')}
+            keyboardType="numeric"
+            value={tip}
+            onChangeText={setTip}
+            leftIcon="heart-outline"
+          />
 
-        {error ? <AppText variant="error">{error}</AppText> : null}
+          {error ? <AppText variant="error">{error}</AppText> : null}
 
-        <View style={styles.buttonRow}>
-          <View style={{ flex: 1 }}>
-            <Button variant="secondary" label={t('common.cancel')} onPress={onClose} disabled={loading} />
+          <View style={{ marginTop: spacing.sm }}>
+            <Button
+              label={t('payment.submit')}
+              size="lg"
+              leftIcon="checkmark-circle"
+              onPress={() => completeMutation.mutate()}
+              loading={completeMutation.isPending}
+            />
           </View>
-          <View style={{ flex: 1 }}>
-            <Button variant="primary" label={t('payment.submit')} onPress={handleSubmit} loading={loading} />
-          </View>
-        </View>
-      </View>
-    </BottomSheet>
+        </ScrollView>
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sheetContent: {
-    gap: 16,
-    paddingBottom: 8,
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    gap: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   section: {
-    gap: 8,
+    gap: spacing.sm,
   },
-  methodRow: {
+  methodGrid: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
-  methodBtn: {
+  methodTile: {
     flex: 1,
-    minHeight: 44,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: 6,
   },
 });
-

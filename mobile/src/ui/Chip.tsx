@@ -1,78 +1,78 @@
+import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import {
-  Pressable,
-  StyleProp,
-  StyleSheet,
-  Text,
-  View,
-  ViewStyle,
-} from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
-import { lightImpact } from './haptics';
-import { radius, spacing, typography } from './tokens';
+import { selectionFeedback } from './haptics';
+import { radius, spacing } from './tokens';
 
-interface Props {
+export interface ChipProps {
   label: string;
   selected?: boolean;
-  onPress: () => void;
-  icon?: ReactNode;
+  onPress?: () => void;
+  leftIcon?: ReactNode | keyof typeof Ionicons.glyphMap;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Chip({ label, selected = false, onPress, icon, style }: Props) {
+export function Chip({ label, selected = false, onPress, leftIcon, style }: ChipProps) {
   const { colors } = useTheme();
-
-  const handlePress = () => {
-    lightImpact();
-    onPress();
-  };
+  const fg = selected ? colors.onPrimary : colors.textSecondary;
 
   return (
     <Pressable
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected }}
-      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={() => {
+        if (!onPress) return;
+        selectionFeedback();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.chip,
         {
           backgroundColor: selected ? colors.primary : colors.surface,
           borderColor: selected ? colors.primary : colors.border,
-          opacity: pressed ? 0.8 : 1,
-          transform: [{ scale: pressed ? 0.96 : 1 }],
+          opacity: pressed ? 0.85 : 1,
         },
         style,
       ]}
     >
-      {icon ? <View style={styles.icon}>{icon}</View> : null}
-      <Text
-        style={[
-          typography.caption,
-          {
-            color: selected ? colors.onPrimary : colors.text,
-            fontWeight: selected ? '700' : '500',
-          },
-        ]}
+      {leftIcon ? (
+        <View style={styles.icon}>
+          {typeof leftIcon === 'string' ? (
+            <Ionicons name={leftIcon as keyof typeof Ionicons.glyphMap} size={14} color={fg} />
+          ) : (
+            leftIcon
+          )}
+        </View>
+      ) : null}
+      <AppText
+        variant="label"
+        style={{
+          color: fg,
+          fontWeight: selected ? '700' : '600',
+          fontSize: 13,
+        }}
       >
         {label}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
 
+export const FilterChip = Chip;
+
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 40,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1,
     alignSelf: 'flex-start',
-    gap: spacing.xs,
   },
   icon: {
-    marginRight: 2,
+    marginRight: 6,
   },
 });

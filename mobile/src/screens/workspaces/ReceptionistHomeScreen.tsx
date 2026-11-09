@@ -1,9 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { QueueEntry } from '../../api/barber';
+import {
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import {
+  markCustomerLeft,
+  markNoShow,
+  requestCancelCustomer,
+  type QueueEntry,
+} from '../../api/barber';
 import {
   assignGeneralCustomer,
   fetchBranchLiveFloor,
@@ -13,20 +24,29 @@ import { useQueueSocket } from '../../api/socket';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import type { ReceptionistStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
   Avatar,
   Badge,
-  BottomSheet,
   Button,
   Card,
+  Chip,
+  ConfirmationDialog,
+  Divider,
   EmptyState,
+  FinancialSummaryCard,
+  QueueTicketCard,
   Screen,
+  SectionHeader,
   SkeletonCard,
+  StatusBadge,
   haptics,
   radius,
   spacing,
+  useToast,
+  type BadgeTone,
 } from '../../ui';
 
 type Props = NativeStackScreenProps<ReceptionistStackParamList, 'ReceptionistHome'>;
@@ -34,483 +54,473 @@ type Props = NativeStackScreenProps<ReceptionistStackParamList, 'ReceptionistHom
 export function ReceptionistHomeScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
-
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
-  const activeBranchId = useWorkspaceStore((s) => s.activeBranchId) ?? activeWorkspace?.branch_id;
+  const branchId = activeWorkspace?.branch_id;
 
-  const [assigningEntry, setAssigningEntry] = useState<QueueEntry | null>(null);
+  const [cancelConfirmEntry, setCancelConfirmEntry] = useState<QueueEntry | null>(null);
 
-  // Real-time WebSocket connection
-  useQueueSocket(activeBranchId);
+  useQueueSocket(branchId);
 
   const floorQuery = useQuery({
-    queryKey: ['live-floor', activeBranchId],
-    queryFn: () => fetchBranchLiveFloor(activeBranchId!),
-    enabled: Boolean(activeBranchId),
-    refetchInterval: 10000,
+    queryKey: ['live-floor', branchId],
+    queryFn: () => fetchBranchLiveFloor(branchId!),
+    enabled: Boolean(branchId),
   });
 
+  const refreshFloor = () => {
+    queryClient.invalidateQueries({ queryKey: ['live-floor', branchId] });
+  };
+
   const assignMutation = useMutation({
-    mutationFn: ({
-      entryId,
-      targetBarberId,
-    }: {
-      entryId: string;
-      targetBarberId: string;
-    }) => assignGeneralCustomer(activeBranchId!, entryId, targetBarberId),
+    mutationFn: ({ entryId, targetBarberId }: { entryId: string; targetBarberId: string }) =>
+      assignGeneralCustomer(branchId!, entryId, targetBarberId),
     onSuccess: () => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: ['live-floor', activeBranchId] });
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
-      setAssigningEntry(null);
+      refreshFloor();
+    },
+    onError: (err: any) => {
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
     },
   });
 
-  const onShiftBarbers = (floorQuery.data?.barbers ?? []).filter(
-    (b) => b.shift_status === 'ACTIVE' || b.shift_status === 'PAUSED',
-  );
+  const noShowMutation = useMutation({
+    mutationFn: (entryId: string) => markNoShow(branchId!, entryId),
+    onSuccess: () => {
+      haptics.light();
+      refreshFloor();
+    },
+  });
 
-  if (!activeBranchId) {
+  const leftMutation = useMutation({
+    mutationFn: (entryId: string) => markCustomerLeft(branchId!, entryId),
+    onSuccess: () => {
+      haptics.light();
+      refreshFloor();
+    },
+  });
+
+  const requestCancelMutation = useMutation({
+    mutationFn: (entryId: string) => requestCancelCustomer(branchId!, entryId),
+    onSuccess: () => {
+      haptics.success();
+      setCancelConfirmEntry(null);
+      showToast({ title: t('queue.requestCancelSuccess'), tone: 'success' });
+    },
+    onError: (err: any) => {
+      setCancelConfirmEntry(null);
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
+    },
+  });
+
+  const handleCallPhone = (phone: string | null) => {
+    if (!phone) {
+      showToast({ title: t('queue.requestCancelNoPhone'), tone: 'warning' });
+      return;
+    }
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      showToast({ title: t('common.error.generic'), tone: 'error' });
+    });
+  };
+
+  if (!branchId) {
     return (
-      <Screen>
-        <EmptyState
-          icon="business-outline"
-          title="No Branch Assigned"
-          description="Ask your salon owner to assign you to a branch."
-        />
-      </Screen>
+      <View style={styles.flex}>
+        <WorkspaceHeader title={t('workspace.receptionist.title')} />
+        <Screen>
+          <EmptyState
+            icon="desktop-outline"
+            title={t('barber.noBranchAssigned')}
+            description={t('workspace.receptionist.placeholder')}
+          />
+        </Screen>
+      </View>
     );
   }
 
-  const stickyAction = activeBranchId ? (
-    <Button
-      variant="primary"
-      label={`+ ${t('walkin.title')}`}
-      onPress={() => {
-        haptics.light();
-        navigation.navigate('AddWalkIn', { branchId: activeBranchId });
-      }}
-    />
-  ) : null;
+  const floor = floorQuery.data;
+  const generalQueue = floor?.general_queue ?? [];
+  const barbers = floor?.barbers ?? [];
+  const activeBarbers = barbers.filter((b) => b.shift_status === 'ACTIVE');
 
   return (
-    <Screen
-      scrollable
-      refreshing={floorQuery.isRefetching}
-      onRefresh={() => floorQuery.refetch()}
-      stickyFooter={stickyAction}
-      contentContainerStyle={styles.container}
-    >
-      {/* Header with Title and Branch Name */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
-            {activeWorkspace?.business_name ?? ''}
-          </AppText>
-          <AppText variant="title" style={styles.title}>
-            {t('floor.title')}
-          </AppText>
-        </View>
-
-        <Badge
-          label={t('floor.barbersCount', { count: onShiftBarbers.length })}
-          variant={onShiftBarbers.length > 0 ? 'success' : 'neutral'}
-        />
-      </View>
-
-      {/* Floor Summary Stats */}
-      <Card style={styles.statsCard}>
-        <View style={styles.statsRow}>
-          <View style={styles.statCol}>
-            <AppText variant="caption" style={{ color: colors.textMuted }}>
-              {t('floor.totalWaiting', { count: '' }).replace(': ', '')}
-            </AppText>
-            <AppText variant="title" style={{ fontSize: 26, fontWeight: '800' }}>
-              {floorQuery.data?.total_waiting_count ?? 0}
-            </AppText>
-          </View>
-
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-
-          <View style={styles.statCol}>
-            <AppText variant="caption" style={{ color: colors.textMuted }}>
-              {t('floor.activeBarbers')}
-            </AppText>
-            <AppText variant="title" style={{ fontSize: 26, fontWeight: '800' }}>
-              {floorQuery.data?.active_barbers_count ?? 0}
-            </AppText>
-          </View>
-        </View>
-      </Card>
-
-      {/* General Queue Section */}
-      <View style={styles.sectionHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <AppText variant="heading" style={{ fontSize: 18 }}>
-            {t('floor.generalQueue')}
-          </AppText>
-          <Badge
-            label={String(floorQuery.data?.general_queue.length ?? 0)}
-            variant="primary"
-          />
-        </View>
-      </View>
-
-      {floorQuery.isLoading ? (
-        <SkeletonCard height={120} />
-      ) : floorQuery.data?.general_queue.length === 0 ? (
-        <Card>
-          <AppText variant="caption" style={{ textAlign: 'center' }}>
-            {t('floor.noGeneralQueue')}
-          </AppText>
-        </Card>
-      ) : (
-        (floorQuery.data?.general_queue ?? []).map((entry) => (
-          <Card key={entry.id}>
-            <View style={styles.entryRow}>
-              <View style={[styles.tokenBox, { backgroundColor: colors.background, borderColor: colors.primary }]}>
-                <AppText style={[styles.tokenText, { color: colors.primary }]}>
-                  {entry.token_number || '—'}
-                </AppText>
-              </View>
-
-              <View style={{ flex: 1, gap: 2 }}>
-                <AppText variant="bodyBold">
-                  {entry.walk_in_name || entry.customer_name || 'Walk-in'}
-                </AppText>
-                <AppText variant="caption" style={{ color: colors.textMuted }}>
-                  {entry.services.map((s) => s.name).join(', ') || 'Standard Cut'}
-                </AppText>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => {
-                  haptics.light();
-                  setAssigningEntry(entry);
-                }}
-                activeOpacity={0.7}
-                style={[
-                  styles.assignBtn,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.primary,
-                  },
-                ]}
-              >
-                <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                  {t('floor.assignTo')}
-                </AppText>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        ))
-      )}
-
-      {/* Active Barbers Section */}
-      <View style={styles.sectionHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <AppText variant="heading" style={{ fontSize: 18 }}>
-            {t('floor.activeBarbers')}
-          </AppText>
-          <Badge
-            label={t('floor.barbersCount', { count: onShiftBarbers.length })}
-            variant="success"
-          />
-        </View>
-      </View>
-
-      {floorQuery.isLoading ? (
-        <View style={{ gap: spacing.md }}>
-          <SkeletonCard height={140} />
-          <SkeletonCard height={140} />
-        </View>
-      ) : onShiftBarbers.length === 0 ? (
-        <Card>
-          <AppText variant="caption" style={{ textAlign: 'center' }}>
-            {t('floor.noBarbersOnShift')}
-          </AppText>
-        </Card>
-      ) : (
-        onShiftBarbers.map((barber) => (
-          <Card key={barber.barber_id} style={{ gap: spacing.sm }}>
-            <View style={styles.barberCardHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-                <Avatar
-                  name={barber.name || barber.phone}
-                  size="md"
-                  status={barber.shift_status === 'ACTIVE' ? 'active' : 'busy'}
-                />
-                <View style={{ gap: 2 }}>
-                  <AppText variant="bodyBold">
-                    {barber.name || barber.phone}
-                  </AppText>
-                  <AppText variant="caption" style={{ color: colors.textMuted }}>
-                    {barber.phone}
-                  </AppText>
-                </View>
-              </View>
-
-              <Badge
-                label={barber.shift_status}
-                variant={barber.shift_status === 'ACTIVE' ? 'success' : 'warning'}
+    <View style={styles.flex}>
+      <WorkspaceHeader title={t('floor.title')} />
+      <Screen scroll={false} padded={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={floorQuery.isRefetching}
+              onRefresh={refreshFloor}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {/* Live Metrics + Walk-In Action */}
+          <View style={styles.metricsSection}>
+            <View style={styles.metricsRow}>
+              <FinancialSummaryCard
+                icon="people-outline"
+                label={t('owner.waitingQueueMetric')}
+                value={String(floor?.total_waiting_count ?? 0)}
+                tone="primary"
+              />
+              <FinancialSummaryCard
+                icon="cut-outline"
+                label={t('owner.activeBarbersMetric')}
+                value={String(floor?.active_barbers_count ?? 0)}
+                tone="success"
               />
             </View>
+            <Button
+              label={t('walkin.title')}
+              size="lg"
+              leftIcon="person-add-outline"
+              onPress={() => navigation.navigate('AddWalkIn')}
+            />
+          </View>
 
-            {/* Serving state */}
-            <View
-              style={[
-                styles.barberStatusBox,
-                { backgroundColor: colors.background, borderColor: colors.border },
-              ]}
-            >
-              {barber.serving ? (
-                <View style={{ gap: 2 }}>
-                  <AppText variant="caption" style={{ color: colors.textMuted }}>
-                    {t('floor.servingNow', {
-                      name: `${barber.serving.token_number || ''} ${
-                        barber.serving.walk_in_name || barber.serving.customer_name || ''
-                      }`.trim(),
-                    })}
-                  </AppText>
-                  <AppText variant="caption" style={{ fontWeight: '700' }}>
-                    {barber.serving.services.map((s) => s.name).join(', ')}
-                  </AppText>
-                </View>
-              ) : (
-                <AppText variant="caption" style={{ color: colors.textMuted }}>
-                  Idle (No customer currently called)
-                </AppText>
-              )}
-            </View>
+          {/* General Queue Section */}
+          <View style={styles.sectionBlock}>
+            <SectionHeader
+              title={`${t('floor.generalQueue')} (${generalQueue.length})`}
+            />
 
-            {/* Queue count & action */}
-            <View style={styles.barberFooterRow}>
-              <AppText variant="caption" style={{ color: colors.textMuted }}>
-                {barber.waiting.length} waiting • ~{barber.wait_time_minutes}m wait
-              </AppText>
+            {floorQuery.isLoading ? (
+              <SkeletonCard />
+            ) : generalQueue.length === 0 ? (
+              <EmptyState
+                compact
+                icon="people-outline"
+                title={t('floor.noGeneralQueue')}
+              />
+            ) : (
+              generalQueue.map((entry: QueueEntry) => (
+                <QueueTicketCard
+                  key={entry.id}
+                  tokenNumber={entry.token_number}
+                  customerName={entry.customer_name || entry.walk_in_name || 'Walk-in'}
+                  customerPhone={entry.customer_phone}
+                  services={entry.services}
+                  totalPrice={entry.total_price}
+                  totalDurationMinutes={entry.total_duration}
+                  rightControls={
+                    <Button
+                      label={t('queue.customerLeft')}
+                      variant="danger"
+                      size="sm"
+                      fullWidth={false}
+                      onPress={() => leftMutation.mutate(entry.id)}
+                    />
+                  }
+                  actions={
+                    <View style={styles.generalActionsCol}>
+                      {entry.customer_phone ? (
+                        <View style={styles.rowGapSm}>
+                          <View style={styles.flexItem}>
+                            <Button
+                              label={t('queue.callCustomer')}
+                              variant="secondary"
+                              size="sm"
+                              leftIcon="call-outline"
+                              onPress={() => handleCallPhone(entry.customer_phone)}
+                            />
+                          </View>
+                          <View style={styles.flexItem}>
+                            <Button
+                              label={t('queue.requestCancel')}
+                              variant="ghost"
+                              size="sm"
+                              leftIcon="chatbubble-ellipses-outline"
+                              onPress={() => setCancelConfirmEntry(entry)}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
 
-              {activeBranchId ? (
-                <TouchableOpacity
-                  onPress={() => {
-                    haptics.light();
-                    navigation.navigate('AddWalkIn', {
-                      branchId: activeBranchId,
-                      preselectedBarberId: barber.barber_id,
-                    });
-                  }}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.smallBtn,
-                    { backgroundColor: colors.background, borderColor: colors.border },
-                  ]}
-                >
-                  <Ionicons name="person-add-outline" size={14} color={colors.primary} />
-                  <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                    + {t('walkin.title')}
-                  </AppText>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </Card>
-        ))
-      )}
-
-      {/* Assign Bottom Sheet */}
-      {assigningEntry ? (
-        <AssignCustomerBottomSheet
-          visible={Boolean(assigningEntry)}
-          entry={assigningEntry}
-          barbers={onShiftBarbers}
-          loading={assignMutation.isPending}
-          onSelect={(barberId) =>
-            assignMutation.mutate({
-              entryId: assigningEntry.id,
-              targetBarberId: barberId,
-            })
-          }
-          onClose={() => setAssigningEntry(null)}
-        />
-      ) : null}
-    </Screen>
-  );
-}
-
-interface AssignSheetProps {
-  visible: boolean;
-  entry: QueueEntry;
-  barbers: BarberFloorState[];
-  loading: boolean;
-  onSelect: (barberId: string) => void;
-  onClose: () => void;
-}
-
-function AssignCustomerBottomSheet({
-  visible,
-  entry,
-  barbers,
-  loading,
-  onSelect,
-  onClose,
-}: AssignSheetProps) {
-  const t = useT();
-  const { colors } = useTheme();
-
-  return (
-    <BottomSheet visible={visible} onClose={onClose} title={t('queue.reassignTitle')}>
-      <View style={styles.sheetContent}>
-        <View style={styles.entrySummary}>
-          <AppText variant="bodyBold" style={{ fontSize: 16 }}>
-            {entry.token_number ? `${entry.token_number} - ` : ''}
-            {entry.walk_in_name || entry.customer_name || 'Walk-in Customer'}
-          </AppText>
-          <AppText variant="caption" style={{ color: colors.textMuted }}>
-            {t('queue.reassignSubtitle')}
-          </AppText>
-        </View>
-
-        <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ gap: spacing.sm }}>
-          {barbers.length === 0 ? (
-            <AppText variant="caption" style={{ textAlign: 'center', paddingVertical: spacing.md }}>
-              {t('floor.noBarbersOnShift')}
-            </AppText>
-          ) : (
-            barbers.map((barber) => (
-              <TouchableOpacity
-                key={barber.barber_id}
-                disabled={loading}
-                activeOpacity={0.7}
-                onPress={() => onSelect(barber.barber_id)}
-                style={[
-                  styles.assignOption,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Avatar name={barber.name || barber.phone} size="sm" />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText variant="bodyBold">
-                    {barber.name || barber.phone}
-                  </AppText>
-                  <AppText variant="caption" style={{ color: colors.textMuted }}>
-                    {barber.waiting.length} waiting • ~{barber.wait_time_minutes}m
-                  </AppText>
-                </View>
-                <Badge
-                  label={barber.shift_status}
-                  variant={barber.shift_status === 'ACTIVE' ? 'success' : 'warning'}
+                      {activeBarbers.length > 0 ? (
+                        <View style={styles.assignBlock}>
+                          <AppText variant="label" style={{ color: colors.textSecondary }}>
+                            {t('floor.assignTo')}
+                          </AppText>
+                          <View style={styles.assignChipsRow}>
+                            {activeBarbers.map((b) => (
+                              <Chip
+                                key={b.barber_id}
+                                label={b.name || b.phone}
+                                leftIcon="cut-outline"
+                                onPress={() =>
+                                  assignMutation.mutate({
+                                    entryId: entry.id,
+                                    targetBarberId: b.barber_id,
+                                  })
+                                }
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  }
                 />
-              </TouchableOpacity>
-            ))
-          )}
+              ))
+            )}
+          </View>
+
+          {/* Barber Chairs & Queues */}
+          <View style={styles.sectionBlock}>
+            <SectionHeader title={t('floor.activeBarbers')} />
+
+            {barbers.length === 0 ? (
+              <EmptyState
+                compact
+                icon="cut-outline"
+                title={t('floor.noBarbersOnShift')}
+              />
+            ) : (
+              barbers.map((b: BarberFloorState) => {
+                const shiftTone: BadgeTone =
+                  b.shift_status === 'ACTIVE'
+                    ? 'success'
+                    : b.shift_status === 'PAUSED'
+                      ? 'warning'
+                      : 'neutral';
+
+                const shiftLabel =
+                  b.shift_status === 'ACTIVE'
+                    ? t('shift.active')
+                    : b.shift_status === 'PAUSED'
+                      ? t('shift.paused')
+                      : t('shift.ended');
+
+                return (
+                  <Card key={b.barber_id} variant="elevated" padding="lg">
+                    <View style={styles.rowBetween}>
+                      <View style={styles.rowCenter}>
+                        <Avatar
+                          name={b.name || b.phone}
+                          uri={b.avatar_url}
+                          size="md"
+                          status={
+                            b.shift_status === 'ACTIVE'
+                              ? 'online'
+                              : b.shift_status === 'PAUSED'
+                                ? 'paused'
+                                : 'offline'
+                          }
+                        />
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <AppText variant="heading3">{b.name || b.phone}</AppText>
+                          <AppText variant="caption">
+                            {t('floor.estimatedWaitShort', { minutes: b.wait_time_minutes })}
+                          </AppText>
+                        </View>
+                      </View>
+                      <StatusBadge label={shiftLabel} tone={shiftTone} size="sm" />
+                    </View>
+
+                    <Divider spacingVertical="md" />
+
+                    {/* Serving Customer */}
+                    {b.serving ? (
+                      <View
+                        style={[
+                          styles.servingBox,
+                          {
+                            backgroundColor: colors.primaryLight,
+                            borderColor: colors.primaryBorder,
+                          },
+                        ]}
+                      >
+                        <View style={styles.rowBetween}>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <AppText variant="bodyBold" style={{ color: colors.primary }}>
+                              {t('floor.servingNow', {
+                                name:
+                                  b.serving.customer_name ||
+                                  b.serving.walk_in_name ||
+                                  'Walk-in',
+                              })}
+                            </AppText>
+                            <AppText variant="caption" style={{ color: colors.textSecondary }}>
+                              {b.serving.token_number ? `#${b.serving.token_number} • ` : ''}
+                              {b.serving.services.map((s) => s.name).join(', ')}
+                            </AppText>
+                          </View>
+                          <Button
+                            label={t('queue.noShow')}
+                            variant="danger"
+                            size="sm"
+                            fullWidth={false}
+                            onPress={() => noShowMutation.mutate(b.serving!.id)}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.idleRow}>
+                        <Ionicons name="checkmark-circle-outline" size={16} color={colors.textMuted} />
+                        <AppText variant="caption" style={{ color: colors.textMuted }}>
+                          {t('floor.idleNoCustomer')}
+                        </AppText>
+                      </View>
+                    )}
+
+                    {/* Barber's Waiting Queue */}
+                    {b.waiting.length > 0 ? (
+                      <View style={styles.barberWaitingBlock}>
+                        <AppText variant="label" style={{ color: colors.textSecondary }}>
+                          {t('floor.waitingCount', { count: b.waiting.length })}
+                        </AppText>
+                        {b.waiting.map((w) => (
+                          <View
+                            key={w.id}
+                            style={[
+                              styles.waitingMiniCard,
+                              {
+                                backgroundColor: colors.inputBackground,
+                                borderColor: colors.border,
+                              },
+                            ]}
+                          >
+                            <View style={styles.rowBetween}>
+                              <View style={styles.rowCenter}>
+                                <Badge label={w.token_number || '#'} tone="primary" size="sm" />
+                                <AppText variant="bodyBold" numberOfLines={1} style={{ flex: 1 }}>
+                                  {w.customer_name || w.walk_in_name || 'Walk-in'}
+                                </AppText>
+                              </View>
+                              <Button
+                                label={t('queue.customerLeft')}
+                                variant="danger"
+                                size="sm"
+                                fullWidth={false}
+                                onPress={() => leftMutation.mutate(w.id)}
+                              />
+                            </View>
+                            {w.customer_phone ? (
+                              <View style={[styles.rowGapSm, { marginTop: spacing.xs }]}>
+                                <View style={styles.flexItem}>
+                                  <Button
+                                    label={t('queue.callCustomer')}
+                                    variant="secondary"
+                                    size="sm"
+                                    leftIcon="call-outline"
+                                    onPress={() => handleCallPhone(w.customer_phone)}
+                                  />
+                                </View>
+                                <View style={styles.flexItem}>
+                                  <Button
+                                    label={t('queue.requestCancel')}
+                                    variant="ghost"
+                                    size="sm"
+                                    onPress={() => setCancelConfirmEntry(w)}
+                                  />
+                                </View>
+                              </View>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </Card>
+                );
+              })
+            )}
+          </View>
         </ScrollView>
 
-        <Button variant="secondary" label={t('common.cancel')} onPress={onClose} disabled={loading} />
-      </View>
-    </BottomSheet>
+        <ConfirmationDialog
+          visible={Boolean(cancelConfirmEntry)}
+          title={t('queue.requestCancel')}
+          description={t('queue.requestCancelConfirm')}
+          confirmLabel={t('common.confirm')}
+          cancelLabel={t('common.cancel')}
+          tone="warning"
+          icon="chatbubble-ellipses-outline"
+          loading={requestCancelMutation.isPending}
+          onConfirm={() => {
+            if (cancelConfirmEntry) {
+              requestCancelMutation.mutate(cancelConfirmEntry.id);
+            }
+          }}
+          onCancel={() => setCancelConfirmEntry(null)}
+        />
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: spacing.lg,
+    gap: spacing.xl,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  statsCard: {
-    padding: spacing.md,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  statCol: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  entryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  metricsSection: {
     gap: spacing.md,
   },
-  tokenBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radius.input,
-    borderWidth: 1.5,
-    minWidth: 54,
-    alignItems: 'center',
-  },
-  tokenText: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  assignBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radius.input,
-    borderWidth: 1,
-  },
-  barberCardHeader: {
+  metricsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  barberStatusBox: {
-    padding: spacing.sm,
-    borderRadius: radius.input,
-    borderWidth: 1,
-  },
-  barberFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  smallBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  sheetContent: {
     gap: spacing.md,
-    paddingBottom: spacing.sm,
   },
-  entrySummary: {
-    gap: 4,
+  sectionBlock: {
+    gap: spacing.md,
   },
-  assignOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  generalActionsCol: {
     gap: spacing.sm,
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  rowCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    flex: 1,
+  },
+  rowGapSm: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  flexItem: {
+    flex: 1,
+  },
+  assignBlock: {
+    gap: 6,
+    marginTop: 4,
+  },
+  assignChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  servingBox: {
     padding: spacing.md,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
     borderWidth: 1,
-    minHeight: 52,
+  },
+  idleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  barberWaitingBlock: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  waitingMiniCard: {
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: 4,
   },
 });

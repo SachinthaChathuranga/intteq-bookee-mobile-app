@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../i18n';
 import { AppointmentsScreen } from '../screens/customer/AppointmentsScreen';
 import { ExploreScreen } from '../screens/customer/ExploreScreen';
@@ -11,53 +13,55 @@ import type { CustomerTabParamList } from './types';
 const Tab = createBottomTabNavigator<CustomerTabParamList>();
 
 export function CustomerTabNavigator() {
-  const t = useT();
   const { colors } = useTheme();
+  const t = useT();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-      }}
+        tabBarStyle: {
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          paddingTop: 8,
+          paddingBottom: bottomPad,
+          height: 58 + bottomPad,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+        tabBarIcon: ({ focused, color }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
+
+          if (route.name === 'HomeTab') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'ExploreTab') {
+            iconName = focused ? 'compass' : 'compass-outline';
+          } else if (route.name === 'AppointmentsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={22} color={color} />;
+        },
+      })}
     >
+      <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: t('nav.home') }} />
+      <Tab.Screen name="ExploreTab" component={ExploreScreen} options={{ title: t('nav.explore') }} />
       <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: t('nav.home'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Explore"
-        component={ExploreScreen}
-        options={{
-          tabBarLabel: t('nav.explore'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="search-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Appointments"
+        name="AppointmentsTab"
         component={AppointmentsScreen}
-        options={{
-          tabBarLabel: t('nav.appointments'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
-        }}
+        options={{ title: t('nav.appointments') }}
       />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: t('nav.profile'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
-      />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: t('nav.profile') }} />
     </Tab.Navigator>
   );
 }

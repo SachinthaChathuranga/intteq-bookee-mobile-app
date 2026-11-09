@@ -1,21 +1,33 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { createBranch, fetchBranch, updateBranch, type WorkingHoursDay } from '../../api/owner';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  createBranch,
+  fetchBranch,
+  updateBranch,
+  type WorkingHoursDay,
+} from '../../api/owner';
 import { AppText } from '../../components/AppText';
-import { Button } from '../../components/Button';
-import { Screen } from '../../components/Screen';
-import { TextField } from '../../components/TextField';
 import { WorkingHoursEditor } from '../../components/WorkingHoursEditor';
 import { useT } from '../../i18n';
-import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { OwnerStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
+import {
+  Button,
+  Card,
+  Input,
+  Screen,
+  haptics,
+  spacing,
+  useToast,
+} from '../../ui';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'BranchEdit'>;
 
 export function BranchEditScreen({ route, navigation }: Props) {
   const t = useT();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const branchId = route.params?.branchId;
   const isEditing = Boolean(branchId);
@@ -36,7 +48,11 @@ export function BranchEditScreen({ route, navigation }: Props) {
     if (branchQuery.data) {
       const b = branchQuery.data;
       setName(b.name || '');
-      setAddress(typeof b.address === 'string' ? b.address : (b.address as any)?.address || '');
+      setAddress(
+        typeof b.address === 'string'
+          ? b.address
+          : (b.address as any)?.address || '',
+      );
       setPhone(b.phone || '');
       if (b.working_hours && b.working_hours.length > 0) {
         setWorkingHours(b.working_hours);
@@ -56,18 +72,18 @@ export function BranchEditScreen({ route, navigation }: Props) {
           phone: phone.trim(),
           working_hours: workingHours,
         });
-      } else {
-        return await createBranch({
-          name: name.trim(),
-          address: address.trim(),
-          phone: phone.trim(),
-          working_hours: workingHours,
-        });
       }
+      return await createBranch({
+        name: name.trim(),
+        address: address.trim(),
+        phone: phone.trim(),
+        working_hours: workingHours,
+      });
     },
     onSuccess: () => {
+      haptics.success();
       queryClient.invalidateQueries({ queryKey: ['branches'] });
-      Alert.alert(t('common.done'), t('branch.saved'));
+      showToast({ title: t('branch.saved'), tone: 'success' });
       navigation.goBack();
     },
     onError: (err: any) => {
@@ -76,42 +92,56 @@ export function BranchEditScreen({ route, navigation }: Props) {
   });
 
   return (
-    <View style={{ flex: 1 }}>
-      <WorkspaceHeader title={isEditing ? t('branch.editTitle') : t('branch.title')} onBack={() => navigation.goBack()} />
-      <Screen>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <TextField
-            label={t('branch.name')}
-            placeholder="e.g. Colombo Flagship"
-            value={name}
-            onChangeText={(txt) => {
-              setName(txt);
-              setError(null);
-            }}
-          />
+    <View style={styles.flex}>
+      <WorkspaceHeader
+        title={isEditing ? t('branch.editTitle') : t('branch.title')}
+        onBack={() => navigation.goBack()}
+      />
+      <Screen scroll={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Card variant="elevated" padding="lg" style={styles.formCard}>
+            <Input
+              label={t('branch.name')}
+              placeholder="e.g. Colombo Flagship"
+              value={name}
+              onChangeText={(txt) => {
+                setName(txt);
+                setError(null);
+              }}
+              leftIcon="business-outline"
+            />
 
-          <TextField
-            label={t('branch.address')}
-            placeholder="e.g. 123 Galle Road, Colombo 03"
-            value={address}
-            onChangeText={setAddress}
-          />
+            <Input
+              label={t('branch.address')}
+              placeholder="e.g. 123 Galle Road, Colombo 03"
+              value={address}
+              onChangeText={setAddress}
+              leftIcon="location-outline"
+            />
 
-          <TextField
-            label={t('branch.phone')}
-            placeholder="e.g. 0112345678"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
+            <Input
+              label={t('branch.phone')}
+              placeholder="e.g. 0112345678"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              leftIcon="call-outline"
+            />
+          </Card>
 
           <WorkingHoursEditor value={workingHours} onChange={setWorkingHours} />
 
           {error ? <AppText variant="error">{error}</AppText> : null}
 
-          <View style={{ marginTop: 12, marginBottom: 24 }}>
+          <View style={styles.footer}>
             <Button
               label={t('branch.save')}
+              size="lg"
+              leftIcon="checkmark-circle"
               onPress={() => saveMutation.mutate()}
               loading={saveMutation.isPending}
             />
@@ -123,8 +153,17 @@ export function BranchEditScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   scroll: {
-    gap: 16,
-    paddingBottom: 40,
+    gap: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  formCard: {
+    gap: spacing.md,
+  },
+  footer: {
+    marginTop: spacing.xs,
   },
 });

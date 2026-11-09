@@ -1,20 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import {
+  autoReassignAll,
   callNextCustomer,
-  completeService,
   devEnqueueCustomer,
+  endShift,
   fetchBarberQueue,
   fetchCurrentShift,
+  markCustomerLeft,
   markNoShow,
   pauseShift,
+  reassignCustomer,
   reorderQueue,
+  requestCancelCustomer,
   resumeShift,
   startShift,
-  type CompleteServiceInput,
   type QueueEntry,
 } from '../../api/barber';
 import { fetchServices } from '../../api/owner';
@@ -22,513 +31,651 @@ import { useQueueSocket } from '../../api/socket';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import type { BarberStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
   Avatar,
   Badge,
+  BottomSheet,
   Button,
   Card,
+  ConfirmationDialog,
   EmptyState,
+  IconButton,
+  OptionCard,
+  QueueTicketCard,
   Screen,
-  SkeletonCard,
-  SkeletonListItem,
+  SectionHeader,
+  StatusBadge,
   haptics,
-  radius,
   spacing,
+  useToast,
 } from '../../ui';
-import { formatCurrency } from '../../utils/format';
-import { CompleteServiceModal } from './CompleteServiceModal';
 
 type Props = NativeStackScreenProps<BarberStackParamList, 'BarberHome'>;
 
 export function BarberHomeScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
-  const activeBranchId = useWorkspaceStore((s) => s.activeBranchId) ?? activeWorkspace?.branch_id;
+  const branchId = activeWorkspace?.branch_id;
 
-  const [completingEntry, setCompletingEntry] = useState<QueueEntry | null>(null);
+  const [reassignEntry, setReassignEntry] = useState<QueueEntry | null>(null);
+  const [cancelConfirmEntry, setCancelConfirmEntry] = useState<QueueEntry | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Real-time WebSocket connection
-  useQueueSocket(activeBranchId);
+  useQueueSocket(branchId);
 
   const shiftQuery = useQuery({
-    queryKey: ['barber-shift', activeBranchId],
-    queryFn: () => fetchCurrentShift(activeBranchId!),
-    enabled: Boolean(activeBranchId),
+    queryKey: ['barber-shift', branchId],
+    queryFn: () => fetchCurrentShift(branchId!),
+    enabled: Boolean(branchId),
   });
 
   const queueQuery = useQuery({
-    queryKey: ['barber-queue', activeBranchId],
-    queryFn: () => fetchBarberQueue(activeBranchId!),
-    enabled: Boolean(activeBranchId),
+    queryKey: ['barber-queue', branchId],
+    queryFn: () => fetchBarberQueue(branchId!),
+    enabled: Boolean(branchId),
   });
 
   const servicesQuery = useQuery({
-    queryKey: ['services', activeBranchId],
-    queryFn: () => fetchServices(activeBranchId!),
-    enabled: Boolean(activeBranchId),
+    queryKey: ['services', branchId],
+    queryFn: () => fetchServices(branchId!),
+    enabled: Boolean(branchId),
   });
 
-  const shift = shiftQuery.data?.shift;
-  const isShiftActive = shift?.status === 'ACTIVE';
-  const isShiftPaused = shift?.status === 'PAUSED';
-  const hasShift = isShiftActive || isShiftPaused;
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['barber-shift', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['barber-queue', branchId] });
+  };
 
-  const serving = queueQuery.data?.serving;
-  const waitingList = queueQuery.data?.waiting ?? [];
-  const generalCount = queueQuery.data?.generalCount ?? 0;
-
-  // Shift Mutations
-  const startShiftMutation = useMutation({
-    mutationFn: () => startShift(activeBranchId!),
+  const startMutation = useMutation({
+    mutationFn: () => startShift(branchId!),
     onSuccess: () => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: ['barber-shift', activeBranchId] });
+      setErrorMsg(null);
+      refreshAll();
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
+    onError: (err: any) => setErrorMsg(err?.message || t('common.error.generic')),
   });
 
-  const pauseShiftMutation = useMutation({
-    mutationFn: () => pauseShift(activeBranchId!),
+  const pauseMutation = useMutation({
+    mutationFn: () => pauseShift(branchId!),
+    onSuccess: () => {
+      haptics.medium();
+      setErrorMsg(null);
+      refreshAll();
+    },
+    onError: (err: any) => setErrorMsg(err?.message || t('common.error.generic')),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeShift(branchId!),
     onSuccess: () => {
       haptics.light();
-      queryClient.invalidateQueries({ queryKey: ['barber-shift', activeBranchId] });
+      setErrorMsg(null);
+      refreshAll();
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
+    onError: (err: any) => setErrorMsg(err?.message || t('common.error.generic')),
   });
 
-  const resumeShiftMutation = useMutation({
-    mutationFn: () => resumeShift(activeBranchId!),
-    onSuccess: () => {
-      haptics.light();
-      queryClient.invalidateQueries({ queryKey: ['barber-shift', activeBranchId] });
+  const endMutation = useMutation({
+    mutationFn: () => endShift(branchId!),
+    onSuccess: (data) => {
+      haptics.success();
+      setErrorMsg(null);
+      refreshAll();
+      navigation.navigate('EndShift', { summary: data.summary });
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
+    onError: (err: any) => {
+      setErrorMsg(err?.message || t('shift.mustResolveQueue'));
+      showToast({ title: err?.message || t('shift.mustResolveQueue'), tone: 'warning' });
+    },
   });
 
-  // Queue Mutations
   const callNextMutation = useMutation({
-    mutationFn: () => callNextCustomer(activeBranchId!),
+    mutationFn: () => callNextCustomer(branchId!),
     onSuccess: () => {
-      haptics.success();
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
+      haptics.medium();
+      setErrorMsg(null);
+      refreshAll();
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
+    onError: (err: any) => setErrorMsg(err?.message || t('common.error.generic')),
   });
 
   const noShowMutation = useMutation({
-    mutationFn: (entryId: string) => markNoShow(activeBranchId!, entryId),
+    mutationFn: (entryId: string) => markNoShow(branchId!, entryId),
     onSuccess: () => {
-      haptics.medium();
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
+      haptics.light();
+      refreshAll();
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
   });
 
-  const completeMutation = useMutation({
-    mutationFn: ({ entryId, data }: { entryId: string; data: CompleteServiceInput }) =>
-      completeService(activeBranchId!, entryId, data),
+  const leftMutation = useMutation({
+    mutationFn: (entryId: string) => markCustomerLeft(branchId!, entryId),
+    onSuccess: () => {
+      haptics.light();
+      refreshAll();
+    },
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: ({ entryId, targetBarberId }: { entryId: string; targetBarberId: string }) =>
+      reassignCustomer(branchId!, entryId, targetBarberId),
     onSuccess: () => {
       haptics.success();
-      setCompletingEntry(null);
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
-      queryClient.invalidateQueries({ queryKey: ['barber-shift', activeBranchId] });
+      setReassignEntry(null);
+      refreshAll();
     },
-    onError: () => Alert.alert('Error', t('common.error.generic')),
+    onError: (err: any) => {
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
+    },
+  });
+
+  const autoReassignMutation = useMutation({
+    mutationFn: () => autoReassignAll(branchId!),
+    onSuccess: () => {
+      haptics.success();
+      setErrorMsg(null);
+      refreshAll();
+    },
+    onError: (err: any) => {
+      setErrorMsg(err?.message || t('common.error.generic'));
+    },
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (entryIds: string[]) => reorderQueue(activeBranchId!, entryIds),
+    mutationFn: (entryIds: string[]) => reorderQueue(branchId!, entryIds),
     onSuccess: () => {
-      haptics.light();
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
+      haptics.selection();
+      refreshAll();
     },
   });
 
   const devEnqueueMutation = useMutation({
-    mutationFn: () => {
-      const allServices = servicesQuery.data ?? [];
-      const serviceIds = allServices.length > 0 ? [allServices[0].id] : [];
-      return devEnqueueCustomer(activeBranchId!, {
-        customerName: `Walk-in #${waitingList.length + 1}`,
-        serviceIds,
-        barberId: activeWorkspace?.id,
+    mutationFn: async () => {
+      const svcs = servicesQuery.data ?? [];
+      const firstSvc = svcs[0];
+      if (!firstSvc) throw new Error(t('service.noServices'));
+      const randNum = Math.floor(Math.random() * 90) + 10;
+      return await devEnqueueCustomer(branchId!, {
+        customerName: `Walk-in #${randNum}`,
+        tokenNumber: `A${randNum}`,
+        serviceIds: [firstSvc.id],
+        queueType: 'BARBER',
       });
     },
     onSuccess: () => {
       haptics.light();
-      queryClient.invalidateQueries({ queryKey: ['barber-queue', activeBranchId] });
+      refreshAll();
+    },
+    onError: (err: any) => {
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
     },
   });
 
-  const moveItem = (index: number, direction: 'up' | 'down') => {
-    const newIdx = direction === 'up' ? index - 1 : index + 1;
-    if (newIdx < 0 || newIdx >= waitingList.length) return;
+  const requestCancelMutation = useMutation({
+    mutationFn: (entryId: string) => requestCancelCustomer(branchId!, entryId),
+    onSuccess: () => {
+      haptics.success();
+      setCancelConfirmEntry(null);
+      showToast({ title: t('queue.requestCancelSuccess'), tone: 'success' });
+    },
+    onError: (err: any) => {
+      setCancelConfirmEntry(null);
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
+    },
+  });
 
-    const items = [...waitingList];
-    const temp = items[index];
-    items[index] = items[newIdx];
-    items[newIdx] = temp;
-
-    reorderMutation.mutate(items.map((i) => i.id));
+  const handleCallPhone = (phone: string | null) => {
+    if (!phone) {
+      showToast({ title: t('queue.requestCancelNoPhone'), tone: 'warning' });
+      return;
+    }
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      showToast({ title: t('common.error.generic'), tone: 'error' });
+    });
   };
 
-  const handleEndShiftPress = () => {
-    if (!shift) return;
-    navigation.navigate('EndShift', { branchId: activeBranchId!, shiftId: shift.id });
-  };
-
-  if (!activeBranchId) {
+  if (!branchId) {
     return (
-      <Screen>
-        <EmptyState
-          icon="business-outline"
-          title="No Branch Assigned"
-          description="Ask your salon owner to assign you to a branch."
-        />
-      </Screen>
+      <View style={styles.flex}>
+        <WorkspaceHeader title={t('workspace.barber.title')} />
+        <Screen>
+          <EmptyState
+            icon="cut-outline"
+            title={t('barber.noBranchAssigned')}
+            description={t('workspace.barber.placeholder')}
+          />
+        </Screen>
+      </View>
     );
   }
 
-  // Determine Sticky Action
-  let stickyAction = null;
-  if (serving) {
-    stickyAction = (
-      <Button
-        variant="primary"
-        label={t('queue.completeService')}
-        onPress={() => setCompletingEntry(serving)}
-      />
-    );
-  } else if (!hasShift) {
-    stickyAction = (
-      <Button
-        variant="primary"
-        label={t('shift.start')}
-        onPress={() => startShiftMutation.mutate()}
-        loading={startShiftMutation.isPending}
-      />
-    );
-  } else if (isShiftActive) {
-    const canCall = waitingList.length > 0 || generalCount > 0;
-    stickyAction = (
-      <Button
-        variant="primary"
-        label={t('queue.callNext')}
-        disabled={!canCall}
-        onPress={() => callNextMutation.mutate()}
-        loading={callNextMutation.isPending}
-      />
-    );
-  }
+  const shift = shiftQuery.data?.shift ?? null;
+  const onShiftBarbers = shiftQuery.data?.on_shift_barbers ?? [];
+  const serving = queueQuery.data?.serving ?? null;
+  const waiting = queueQuery.data?.waiting ?? [];
+  const generalCount = queueQuery.data?.generalCount ?? 0;
+
+  const moveCustomer = (index: number, direction: -1 | 1) => {
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= waiting.length) return;
+    const ids = waiting.map((w) => w.id);
+    const temp = ids[index];
+    ids[index] = ids[targetIdx];
+    ids[targetIdx] = temp;
+    reorderMutation.mutate(ids);
+  };
+
+  const shiftStatusTone =
+    shift?.status === 'ACTIVE'
+      ? 'success'
+      : shift?.status === 'PAUSED'
+        ? 'warning'
+        : 'neutral';
+
+  const shiftStatusLabel =
+    shift?.status === 'ACTIVE'
+      ? t('shift.active')
+      : shift?.status === 'PAUSED'
+        ? t('shift.paused')
+        : t('shift.ended');
+
+  const isRefreshing = shiftQuery.isRefetching || queueQuery.isRefetching;
 
   return (
-    <Screen
-      scrollable
-      refreshing={queueQuery.isRefetching || shiftQuery.isRefetching}
-      onRefresh={() => {
-        queueQuery.refetch();
-        shiftQuery.refetch();
-      }}
-      stickyFooter={stickyAction}
-      contentContainerStyle={styles.container}
-    >
-      {/* Screen Header with Large Title */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
-            {activeWorkspace?.business_name ?? t('workspace.barber.title')}
-          </AppText>
-          <AppText variant="title" style={styles.title}>
-            {t('nav.queue')}
-          </AppText>
-        </View>
-
-        <Badge
-          label={
-            isShiftActive
-              ? t('shift.active')
-              : isShiftPaused
-              ? t('shift.paused')
-              : t('shift.ended')
+    <View style={styles.flex}>
+      <WorkspaceHeader title={t('workspace.barber.title')} />
+      <Screen scroll={false} padded={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refreshAll}
+              tintColor={colors.primary}
+            />
           }
-          variant={isShiftActive ? 'success' : isShiftPaused ? 'warning' : 'neutral'}
-        />
-      </View>
+        >
+          {/* Shift Controls Card */}
+          <Card variant="elevated" padding="lg">
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <StatusBadge label={shiftStatusLabel} tone={shiftStatusTone} />
+                {shift ? (
+                  <AppText variant="caption" style={{ color: colors.textMuted, marginTop: 2 }}>
+                    {new Date(shift.start_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </AppText>
+                ) : null}
+              </View>
+              <Button
+                label={t('barber.devTestCustomer')}
+                variant="subtle"
+                size="sm"
+                fullWidth={false}
+                loading={devEnqueueMutation.isPending}
+                onPress={() => devEnqueueMutation.mutate()}
+              />
+            </View>
 
-      {/* Shift Overview Bar */}
-      <Card style={styles.shiftCard}>
-        <View style={styles.shiftHeader}>
-          <View style={{ gap: 2 }}>
-            <AppText variant="caption" style={{ color: colors.textMuted }}>
-              {t('shift.duration')}
-            </AppText>
-            <AppText variant="heading" style={{ fontSize: 18 }}>
-              {hasShift ? `${shiftQuery.data?.summary?.duration_minutes ?? 0} mins` : '—'}
-            </AppText>
-          </View>
-
-          {hasShift ? (
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              {isShiftActive ? (
+            <View style={styles.shiftActionsGrid}>
+              {!shift || shift.status === 'ENDED' ? (
                 <Button
-                  variant="secondary"
-                  size="small"
-                  label={t('shift.pause')}
-                  onPress={() => pauseShiftMutation.mutate()}
-                  loading={pauseShiftMutation.isPending}
+                  label={t('shift.start')}
+                  variant="primary"
+                  leftIcon="play"
+                  onPress={() => startMutation.mutate()}
+                  loading={startMutation.isPending}
                 />
               ) : (
-                <Button
-                  variant="primary"
-                  size="small"
-                  label={t('shift.resume')}
-                  onPress={() => resumeShiftMutation.mutate()}
-                  loading={resumeShiftMutation.isPending}
-                />
+                <>
+                  <View style={styles.flexItem}>
+                    {shift.status === 'ACTIVE' ? (
+                      <Button
+                        label={t('shift.pause')}
+                        variant="secondary"
+                        size="sm"
+                        leftIcon="pause"
+                        onPress={() => pauseMutation.mutate()}
+                        loading={pauseMutation.isPending}
+                      />
+                    ) : (
+                      <Button
+                        label={t('shift.resume')}
+                        variant="primary"
+                        size="sm"
+                        leftIcon="play"
+                        onPress={() => resumeMutation.mutate()}
+                        loading={resumeMutation.isPending}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.flexItem}>
+                    <Button
+                      label={t('shift.end')}
+                      variant="danger"
+                      size="sm"
+                      leftIcon="stop"
+                      onPress={() => endMutation.mutate()}
+                      loading={endMutation.isPending}
+                    />
+                  </View>
+                </>
               )}
-              <Button
-                variant="ghost"
-                size="small"
-                label={t('shift.end')}
-                onPress={handleEndShiftPress}
-              />
             </View>
-          ) : null}
-        </View>
-      </Card>
 
-      {/* Currently Serving Section */}
-      {serving ? (
-        <Card style={[styles.servingCard, { borderColor: colors.primary }]}>
-          <View style={styles.servingHeader}>
-            <Badge label={t('queue.currentlyServing')} variant="primary" />
-            <AppText variant="bodyBold" style={{ color: colors.primary }}>
-              {formatCurrency(serving.total_price)}
-            </AppText>
-          </View>
+            {waiting.length > 0 && shift && shift.status !== 'ENDED' ? (
+              <View style={{ marginTop: spacing.sm }}>
+                <Button
+                  label={t('queue.autoReassignAll')}
+                  variant="ghost"
+                  size="sm"
+                  leftIcon="swap-horizontal-outline"
+                  onPress={() => autoReassignMutation.mutate()}
+                  loading={autoReassignMutation.isPending}
+                />
+              </View>
+            ) : null}
 
-          <View style={styles.customerRow}>
-            <Avatar name={serving.walk_in_name || serving.customer_name || 'Customer'} size="lg" />
-            <View style={{ flex: 1, gap: 4 }}>
-              <AppText variant="heading" style={{ fontSize: 20 }}>
-                {serving.walk_in_name || serving.customer_name || serving.token_number}
-              </AppText>
-              <AppText variant="caption" style={{ color: colors.textMuted }}>
-                {serving.services.map((s) => `${s.name} (${s.duration_minutes}m)`).join(', ')}
-              </AppText>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs }}>
-            <View style={{ flex: 1 }}>
-              <Button
-                variant="secondary"
-                label={t('queue.noShow')}
-                onPress={() => noShowMutation.mutate(serving.id)}
-                loading={noShowMutation.isPending}
-              />
-            </View>
-          </View>
-        </Card>
-      ) : null}
-
-      {/* My Waiting Queue */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <AppText variant="heading" style={{ fontSize: 18 }}>
-              {t('queue.waitingTitle')}
-            </AppText>
-            <Badge label={String(waitingList.length)} variant="primary" />
-          </View>
-
-          {/* Dev Test Enqueuer */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => devEnqueueMutation.mutate()}
-            style={[styles.devBtn, { borderColor: colors.border }]}
-          >
-            <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-              + Test Customer
-            </AppText>
-          </TouchableOpacity>
-        </View>
-
-        {queueQuery.isLoading ? (
-          <View style={{ gap: spacing.md }}>
-            <SkeletonListItem />
-            <SkeletonListItem />
-          </View>
-        ) : waitingList.length === 0 ? (
-          <Card>
-            <AppText variant="body" style={{ textAlign: 'center', fontWeight: '600' }}>
-              {t('queue.empty')}
-            </AppText>
-            {generalCount > 0 ? (
-              <AppText
-                variant="caption"
-                style={{ textAlign: 'center', marginTop: 4, color: colors.primary, fontWeight: '600' }}
-              >
-                {t('queue.generalAvailable', { count: generalCount })}
+            {errorMsg ? (
+              <AppText variant="error" style={{ marginTop: spacing.xs }}>
+                {errorMsg}
               </AppText>
             ) : null}
           </Card>
-        ) : (
-          waitingList.map((item, index) => {
-            const name = item.walk_in_name || item.customer_name || item.token_number;
 
-            return (
-              <Card key={item.id}>
-                <View style={styles.waitingRow}>
-                  <View style={[styles.indexPill, { backgroundColor: colors.background }]}>
-                    <AppText style={[styles.indexText, { color: colors.primary }]}>
-                      #{index + 1}
-                    </AppText>
+          {/* Currently Serving Section */}
+          <View style={styles.sectionBlock}>
+            <SectionHeader
+              title={t('queue.currentlyServing')}
+              rightElement={
+                generalCount > 0 ? (
+                  <Badge
+                    label={t('queue.generalAvailable', { count: generalCount })}
+                    tone="primary"
+                    size="sm"
+                  />
+                ) : undefined
+              }
+            />
+
+            {serving ? (
+              <QueueTicketCard
+                highlighted
+                tokenNumber={serving.token_number}
+                customerName={serving.customer_name || serving.walk_in_name || 'Walk-in'}
+                customerPhone={serving.customer_phone}
+                services={serving.services}
+                totalPrice={serving.total_price}
+                totalDurationMinutes={serving.total_duration}
+                statusLabel={serving.status}
+                statusTone="success"
+                actions={
+                  <View style={styles.servingActionsCol}>
+                    <Button
+                      label={t('queue.completeService')}
+                      variant="primary"
+                      size="lg"
+                      leftIcon="checkmark-circle"
+                      onPress={() =>
+                        navigation.navigate('CompleteService', {
+                          branchId,
+                          entry: serving,
+                        })
+                      }
+                    />
+                    <View style={styles.rowGapSm}>
+                      {serving.customer_phone ? (
+                        <View style={styles.flexItem}>
+                          <Button
+                            label={t('queue.callCustomer')}
+                            variant="secondary"
+                            size="sm"
+                            leftIcon="call-outline"
+                            onPress={() => handleCallPhone(serving.customer_phone)}
+                          />
+                        </View>
+                      ) : null}
+                      <View style={styles.flexItem}>
+                        <Button
+                          label={t('queue.reassign')}
+                          variant="secondary"
+                          size="sm"
+                          leftIcon="swap-horizontal-outline"
+                          onPress={() => setReassignEntry(serving)}
+                        />
+                      </View>
+                      <View style={styles.flexItem}>
+                        <Button
+                          label={t('queue.noShow')}
+                          variant="danger"
+                          size="sm"
+                          onPress={() => noShowMutation.mutate(serving.id)}
+                          loading={noShowMutation.isPending}
+                        />
+                      </View>
+                    </View>
                   </View>
-
-                  <Avatar name={name} size="md" />
-
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText variant="bodyBold">
-                      {name}
-                    </AppText>
-                    <AppText variant="caption" style={{ color: colors.textMuted }}>
-                      {item.services.map((s) => s.name).join(', ')} • {formatCurrency(item.total_price)}
-                    </AppText>
-                  </View>
-
-                  {/* Reorder Controls */}
-                  <View style={styles.reorderCol}>
-                    <TouchableOpacity
-                      disabled={index === 0}
-                      onPress={() => moveItem(index, 'up')}
-                      style={[
-                        styles.arrowBtn,
-                        { opacity: index === 0 ? 0.3 : 1, borderColor: colors.border },
-                      ]}
-                    >
-                      <Ionicons name="chevron-up" size={16} color={colors.text} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      disabled={index === waitingList.length - 1}
-                      onPress={() => moveItem(index, 'down')}
-                      style={[
-                        styles.arrowBtn,
-                        {
-                          opacity: index === waitingList.length - 1 ? 0.3 : 1,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    >
-                      <Ionicons name="chevron-down" size={16} color={colors.text} />
-                    </TouchableOpacity>
-                  </View>
+                }
+              />
+            ) : (
+              <Card variant="outlined" padding="lg">
+                <View style={{ alignItems: 'center', gap: spacing.md }}>
+                  <AppText variant="bodySmall" style={{ color: colors.textSecondary, textAlign: 'center' }}>
+                    {t('barber.idleCurrentlyServing')}
+                  </AppText>
+                  <Button
+                    label={t('queue.callNext')}
+                    variant="primary"
+                    size="lg"
+                    leftIcon="megaphone-outline"
+                    disabled={!shift || shift.status !== 'ACTIVE' || (waiting.length === 0 && generalCount === 0)}
+                    loading={callNextMutation.isPending}
+                    onPress={() => callNextMutation.mutate()}
+                  />
                 </View>
               </Card>
-            );
-          })
-        )}
-      </View>
+            )}
+          </View>
 
-      {/* Completion Bottom Sheet */}
-      <CompleteServiceModal
-        visible={Boolean(completingEntry)}
-        entry={completingEntry}
-        onClose={() => setCompletingEntry(null)}
-        onSubmit={(data) => {
-          if (completingEntry) {
-            completeMutation.mutate({ entryId: completingEntry.id, data });
-          }
-        }}
-        loading={completeMutation.isPending}
-      />
-    </Screen>
+          {/* Waiting Queue List */}
+          <View style={styles.sectionBlock}>
+            <SectionHeader
+              title={`${t('queue.waitingTitle')} (${waiting.length})`}
+            />
+
+            {waiting.length === 0 ? (
+              <EmptyState
+                compact
+                icon="people-outline"
+                title={t('queue.empty')}
+              />
+            ) : (
+              waiting.map((entry, idx) => (
+                <QueueTicketCard
+                  key={entry.id}
+                  tokenNumber={entry.token_number || `${idx + 1}`}
+                  customerName={entry.customer_name || entry.walk_in_name || 'Walk-in'}
+                  customerPhone={entry.customer_phone}
+                  services={entry.services}
+                  totalPrice={entry.total_price}
+                  totalDurationMinutes={entry.total_duration}
+                  rightControls={
+                    <View style={styles.reorderGroup}>
+                      <IconButton
+                        icon="chevron-up"
+                        size="sm"
+                        variant="subtle"
+                        disabled={idx === 0}
+                        accessibilityLabel={t('queue.moveUp')}
+                        onPress={() => moveCustomer(idx, -1)}
+                      />
+                      <IconButton
+                        icon="chevron-down"
+                        size="sm"
+                        variant="subtle"
+                        disabled={idx === waiting.length - 1}
+                        accessibilityLabel={t('queue.moveDown')}
+                        onPress={() => moveCustomer(idx, 1)}
+                      />
+                    </View>
+                  }
+                  actions={
+                    <View style={styles.waitingActionsCol}>
+                      {entry.customer_phone ? (
+                        <View style={styles.rowGapSm}>
+                          <View style={styles.flexItem}>
+                            <Button
+                              label={t('queue.callCustomer')}
+                              variant="secondary"
+                              size="sm"
+                              leftIcon="call-outline"
+                              onPress={() => handleCallPhone(entry.customer_phone)}
+                            />
+                          </View>
+                          <View style={styles.flexItem}>
+                            <Button
+                              label={t('queue.requestCancel')}
+                              variant="ghost"
+                              size="sm"
+                              leftIcon="chatbubble-ellipses-outline"
+                              onPress={() => setCancelConfirmEntry(entry)}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
+                      <View style={styles.rowGapSm}>
+                        <View style={styles.flexItem}>
+                          <Button
+                            label={t('queue.reassign')}
+                            variant="secondary"
+                            size="sm"
+                            leftIcon="swap-horizontal-outline"
+                            onPress={() => setReassignEntry(entry)}
+                          />
+                        </View>
+                        <View style={styles.flexItem}>
+                          <Button
+                            label={t('queue.customerLeft')}
+                            variant="danger"
+                            size="sm"
+                            onPress={() => leftMutation.mutate(entry.id)}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  }
+                />
+              ))
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Reassign Customer BottomSheet */}
+        <BottomSheet
+          visible={Boolean(reassignEntry)}
+          onClose={() => setReassignEntry(null)}
+          title={t('queue.reassignTitle')}
+          subtitle={t('queue.reassignSubtitle')}
+        >
+          {onShiftBarbers.filter((b) => b.barber_id !== shift?.barber_id).length === 0 ? (
+            <EmptyState
+              compact
+              icon="people-outline"
+              title={t('floor.noBarbersOnShift')}
+            />
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {onShiftBarbers
+                .filter((b) => b.barber_id !== shift?.barber_id)
+                .map((b) => (
+                  <OptionCard
+                    key={b.barber_id}
+                    title={b.name || b.phone}
+                    subtitle={b.phone}
+                    leftElement={<Avatar name={b.name || b.phone} size="sm" status="online" />}
+                    onPress={() => {
+                      if (reassignEntry) {
+                        reassignMutation.mutate({
+                          entryId: reassignEntry.id,
+                          targetBarberId: b.barber_id,
+                        });
+                      }
+                    }}
+                  />
+                ))}
+            </View>
+          )}
+        </BottomSheet>
+
+        {/* Request Cancel Confirmation Dialog */}
+        <ConfirmationDialog
+          visible={Boolean(cancelConfirmEntry)}
+          title={t('queue.requestCancel')}
+          description={t('queue.requestCancelConfirm')}
+          confirmLabel={t('common.confirm')}
+          cancelLabel={t('common.cancel')}
+          tone="warning"
+          icon="chatbubble-ellipses-outline"
+          loading={requestCancelMutation.isPending}
+          onConfirm={() => {
+            if (cancelConfirmEntry) {
+              requestCancelMutation.mutate(cancelConfirmEntry.id);
+            }
+          }}
+          onCancel={() => setCancelConfirmEntry(null)}
+        />
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: spacing.lg,
+    gap: spacing.xl,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
   },
-  header: {
+  rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  shiftCard: {
-    padding: spacing.md,
-  },
-  shiftHeader: {
+  shiftActionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
-  servingCard: {
-    borderWidth: 2,
+  flexItem: {
+    flex: 1,
+  },
+  sectionBlock: {
     gap: spacing.md,
   },
-  servingHeader: {
+  servingActionsCol: {
+    gap: spacing.sm,
+  },
+  waitingActionsCol: {
+    gap: spacing.sm,
+  },
+  rowGapSm: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.sm,
   },
-  customerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  devBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  waitingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  indexPill: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  indexText: {
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  reorderCol: {
+  reorderGroup: {
     flexDirection: 'row',
     gap: 4,
-  },
-  arrowBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

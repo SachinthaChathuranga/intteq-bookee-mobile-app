@@ -1,147 +1,115 @@
+import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
-import { lightImpact } from './haptics';
-import { radius, spacing, typography } from './tokens';
+import { IconButton } from './Button';
+import { radius, spacing } from './tokens';
 
-interface Props {
+export interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  subtitle?: string;
   children: ReactNode;
-  maxHeight?: number;
+  footer?: ReactNode;
 }
 
-export function BottomSheet({ visible, onClose, title, children, maxHeight }: Props) {
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+}: BottomSheetProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const handleClose = () => {
-    lightImpact();
-    onClose();
-  };
-
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      <View style={styles.container}>
-        {/* Backdrop */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleClose}
-          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
-        />
-
-        {/* Slide-up Sheet */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardWrap}
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
+        <Pressable style={styles.backdropDismiss} onPress={onClose} />
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+            },
+          ]}
         >
-          <View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                paddingBottom: insets.bottom + spacing.md,
-                maxHeight: maxHeight ?? '85%',
-              },
-            ]}
-          >
-            {/* Drag Handle */}
-            <View style={styles.handleContainer}>
-              <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
-            </View>
-
-            {/* Header */}
-            {title ? (
-              <View style={[styles.header, { borderBottomColor: colors.border }]}>
-                <Text style={[typography.heading, { color: colors.text }]}>{title}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={handleClose}
-                  style={styles.closeBtn}
-                >
-                  <Text style={{ color: colors.textMuted, fontSize: 18 }}>✕</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {/* Sheet Content */}
-            <ScrollView
-              contentContainerStyle={styles.content}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {children}
-            </ScrollView>
+          <View style={styles.handleWrapper}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
           </View>
-        </KeyboardAvoidingView>
+          {title ? (
+            <View style={styles.header}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText variant="heading2">{title}</AppText>
+                {subtitle ? (
+                  <AppText variant="caption" style={{ color: colors.textMuted }}>
+                    {subtitle}
+                  </AppText>
+                ) : null}
+              </View>
+              <IconButton icon="close" size="sm" variant="subtle" onPress={onClose} />
+            </View>
+          ) : null}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+          {footer ? (
+            <View style={[styles.footer, { borderTopColor: colors.divider }]}>{footer}</View>
+          ) : null}
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
   },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  keyboardWrap: {
-    width: '100%',
-    justifyContent: 'flex-end',
+  backdropDismiss: {
+    flex: 1,
   },
   sheet: {
-    width: '100%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
     borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
+    paddingHorizontal: spacing.lg,
+    maxHeight: '88%',
   },
-  handleContainer: {
+  handleWrapper: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
   },
-  dragHandle: {
-    width: 36,
-    height: 5,
-    borderRadius: radius.full,
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-  },
-  closeBtn: {
-    padding: spacing.xs,
-  },
-  content: {
-    padding: spacing.lg,
     gap: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  body: {
+    gap: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  footer: {
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

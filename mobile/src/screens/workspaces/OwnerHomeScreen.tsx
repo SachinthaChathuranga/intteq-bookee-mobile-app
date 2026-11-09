@@ -1,23 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { fetchBranches } from '../../api/owner';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  fetchBarbersAndInvites,
+  fetchBranches,
+  fetchServices,
+} from '../../api/owner';
+import { fetchBranchLiveFloor } from '../../api/receptionist';
+import { useQueueSocket } from '../../api/socket';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
 import type { OwnerStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
-  Badge,
   Button,
   Card,
   EmptyState,
-  ListItem,
+  FinancialSummaryCard,
   Screen,
+  SectionHeader,
   SkeletonCard,
-  haptics,
+  StatusBadge,
   radius,
   spacing,
 } from '../../ui';
@@ -27,7 +34,6 @@ type Props = NativeStackScreenProps<OwnerStackParamList, 'OwnerHome'>;
 export function OwnerHomeScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
-  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
   const activeBranchId = useWorkspaceStore((s) => s.activeBranchId);
   const setActiveBranchId = useWorkspaceStore((s) => s.setActiveBranchId);
 
@@ -36,169 +42,264 @@ export function OwnerHomeScreen({ navigation }: Props) {
     queryFn: fetchBranches,
   });
 
-  const branches = branchesQuery.data ?? [];
-  const activeBranch = branches.find((b) => b.id === activeBranchId) ?? branches[0] ?? null;
-
   useEffect(() => {
-    if (branches.length > 0 && (!activeBranchId || !branches.some((b) => b.id === activeBranchId))) {
-      setActiveBranchId(branches[0].id);
+    if (
+      branchesQuery.data &&
+      branchesQuery.data.length > 0 &&
+      !activeBranchId
+    ) {
+      setActiveBranchId(branchesQuery.data[0].id);
     }
-  }, [branches, activeBranchId, setActiveBranchId]);
+  }, [branchesQuery.data, activeBranchId, setActiveBranchId]);
 
-  const activeAddress =
-    typeof activeBranch?.address === 'string'
+  useQueueSocket(activeBranchId);
+
+  const floorQuery = useQuery({
+    queryKey: ['live-floor', activeBranchId],
+    queryFn: () => fetchBranchLiveFloor(activeBranchId!),
+    enabled: Boolean(activeBranchId),
+  });
+
+  const servicesQuery = useQuery({
+    queryKey: ['services', activeBranchId],
+    queryFn: () => fetchServices(activeBranchId!),
+    enabled: Boolean(activeBranchId),
+  });
+
+  const barbersQuery = useQuery({
+    queryKey: ['barbers', activeBranchId],
+    queryFn: () => fetchBarbersAndInvites(activeBranchId!),
+    enabled: Boolean(activeBranchId),
+  });
+
+  const branches = branchesQuery.data ?? [];
+  const activeBranch =
+    branches.find((b) => b.id === activeBranchId) ?? branches[0] ?? null;
+
+  const activeAddressStr = activeBranch
+    ? typeof activeBranch.address === 'string'
       ? activeBranch.address
-      : (activeBranch?.address as any)?.address;
+      : (activeBranch.address as any)?.address
+    : null;
+
+  const activeServicesCount = (servicesQuery.data ?? []).filter(
+    (s) => s.is_active,
+  ).length;
+  const totalBarbersCount = (barbersQuery.data?.barbers ?? []).length;
+
+  const handleRefresh = () => {
+    void Promise.all([
+      branchesQuery.refetch(),
+      floorQuery.refetch(),
+      servicesQuery.refetch(),
+      barbersQuery.refetch(),
+    ]);
+  };
+
+  const managementItems: {
+    title: string;
+    subtitle: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+  }[] = [
+    {
+      title: t('owner.branches'),
+      subtitle: t('owner.branchesSubtitle'),
+      icon: 'business-outline',
+      onPress: () => navigation.navigate('BranchList'),
+    },
+    {
+      title: t('owner.services'),
+      subtitle: t('owner.servicesSubtitle'),
+      icon: 'cut-outline',
+      onPress: () => navigation.navigate('ServiceList'),
+    },
+    {
+      title: t('owner.barbers'),
+      subtitle: t('owner.barbersSubtitle'),
+      icon: 'people-outline',
+      onPress: () => navigation.navigate('BarberList'),
+    },
+  ];
 
   return (
-    <Screen
-      scrollable
-      refreshing={branchesQuery.isRefetching}
-      onRefresh={() => branchesQuery.refetch()}
-      contentContainerStyle={styles.container}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
-            {activeWorkspace?.business_name ?? t('workspace.owner.title')}
-          </AppText>
-          <AppText variant="title" style={styles.title}>
-            {t('nav.overview')}
-          </AppText>
-        </View>
-        <Badge label={t('role.OWNER')} variant="primary" />
-      </View>
+    <View style={styles.flex}>
+      <WorkspaceHeader title={t('workspace.owner.title')} />
+      <Screen scroll={false} padded={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={branchesQuery.isRefetching || floorQuery.isRefetching}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {/* Active Branch Selector Card */}
+          {branchesQuery.isLoading ? (
+            <SkeletonCard />
+          ) : !activeBranch ? (
+            <EmptyState
+              icon="business-outline"
+              title={t('owner.noBranches')}
+              actionLabel={t('owner.createBranch')}
+              onActionPress={() => navigation.navigate('BranchEdit', {})}
+            />
+          ) : (
+            <Card variant="selected" padding="lg">
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <StatusBadge label={t('owner.activeBranch')} tone="success" size="sm" />
+                  <AppText variant="heading2" style={{ marginTop: 2 }}>
+                    {activeBranch.name}
+                  </AppText>
+                  {activeAddressStr ? (
+                    <View style={styles.metaRow}>
+                      <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                      <AppText variant="caption" style={{ color: colors.textSecondary }}>
+                        {activeAddressStr}
+                      </AppText>
+                    </View>
+                  ) : null}
+                </View>
+                {branches.length > 1 ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    label={t('owner.switchBranch')}
+                    leftIcon="swap-horizontal-outline"
+                    onPress={() => navigation.navigate('BranchList')}
+                  />
+                ) : null}
+              </View>
+            </Card>
+          )}
 
-      {/* Active Branch Section */}
-      {branchesQuery.isLoading ? (
-        <SkeletonCard height={140} />
-      ) : activeBranch ? (
-        <Card style={styles.branchCard}>
-          <View style={styles.branchHeader}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
-                {t('owner.activeBranch')}
-              </AppText>
-              <AppText variant="heading" style={{ fontSize: 20 }}>
-                {activeBranch.name}
-              </AppText>
-              {activeAddress ? (
-                <AppText variant="caption" style={{ color: colors.textMuted }}>
-                  {activeAddress}
-                </AppText>
-              ) : null}
+          {/* Live Branch Pulse Metrics */}
+          {activeBranch ? (
+            <View style={styles.sectionBlock}>
+              <SectionHeader title={t('owner.liveOverviewSection')} />
+              <View style={styles.metricsGrid}>
+                <View style={styles.metricsRow}>
+                  <FinancialSummaryCard
+                    icon="cut-outline"
+                    label={t('owner.activeBarbersMetric')}
+                    value={String(floorQuery.data?.active_barbers_count ?? 0)}
+                    tone="success"
+                  />
+                  <FinancialSummaryCard
+                    icon="people-outline"
+                    label={t('owner.waitingQueueMetric')}
+                    value={String(floorQuery.data?.total_waiting_count ?? 0)}
+                    tone="primary"
+                  />
+                </View>
+                <View style={styles.metricsRow}>
+                  <FinancialSummaryCard
+                    icon="sparkles-outline"
+                    label={t('owner.servicesMetric')}
+                    value={String(activeServicesCount)}
+                    tone="info"
+                  />
+                  <FinancialSummaryCard
+                    icon="id-card-outline"
+                    label={t('owner.teamMetric')}
+                    value={String(totalBarbersCount)}
+                    tone="warning"
+                  />
+                </View>
+              </View>
             </View>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                haptics.light();
-                navigation.navigate('BranchList');
-              }}
-              style={[styles.switchPill, { borderColor: colors.primary }]}
-            >
-              <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                {t('owner.switchBranch')}
-              </AppText>
-            </TouchableOpacity>
+          ) : null}
+
+          {/* Salon Configuration Cards */}
+          <View style={styles.sectionBlock}>
+            <SectionHeader title={t('owner.managementSection')} />
+            <View style={styles.stackSm}>
+              {managementItems.map((item) => (
+                <Card
+                  key={item.title}
+                  variant="elevated"
+                  padding="lg"
+                  onPress={item.onPress}
+                >
+                  <View style={styles.rowCenter}>
+                    <View
+                      style={[
+                        styles.iconBox,
+                        {
+                          backgroundColor: colors.primaryLight,
+                          borderColor: colors.primaryBorder,
+                        },
+                      ]}
+                    >
+                      <Ionicons name={item.icon} size={22} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <AppText variant="heading3">{item.title}</AppText>
+                      <AppText variant="caption" style={{ color: colors.textSecondary }}>
+                        {item.subtitle}
+                      </AppText>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                  </View>
+                </Card>
+              ))}
+            </View>
           </View>
-        </Card>
-      ) : (
-        <EmptyState
-          icon="business-outline"
-          title={t('owner.noBranches')}
-          description="Create your first branch to start configuring services and staff."
-          actionLabel={t('owner.createBranch')}
-          onAction={() => navigation.navigate('BranchEdit', {})}
-        />
-      )}
-
-      {/* Management Sections List */}
-      <View style={styles.section}>
-        <AppText variant="heading" style={{ fontSize: 18 }}>
-          Management
-        </AppText>
-
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <ListItem
-            title={t('owner.branches')}
-            subtitle={t('owner.branchesSubtitle')}
-            left={<Ionicons name="business-outline" size={22} color={colors.primary} />}
-            onPress={() => {
-              haptics.light();
-              navigation.navigate('BranchList');
-            }}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <ListItem
-            title={t('owner.services')}
-            subtitle={t('owner.servicesSubtitle')}
-            left={<Ionicons name="cut-outline" size={22} color={colors.primary} />}
-            onPress={() => {
-              haptics.light();
-              if (activeBranch) {
-                navigation.navigate('ServiceList');
-              } else {
-                navigation.navigate('BranchList');
-              }
-            }}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <ListItem
-            title={t('owner.barbers')}
-            subtitle={t('owner.barbersSubtitle')}
-            left={<Ionicons name="people-outline" size={22} color={colors.primary} />}
-            onPress={() => {
-              haptics.light();
-              if (activeBranch) {
-                navigation.navigate('BarberList');
-              } else {
-                navigation.navigate('BranchList');
-              }
-            }}
-          />
-        </Card>
-      </View>
-    </Screen>
+        </ScrollView>
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingBottom: spacing.xxl,
-    gap: spacing.lg,
+  flex: {
+    flex: 1,
   },
-  header: {
+  scrollContent: {
+    padding: spacing.lg,
+    gap: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  branchCard: {
-    gap: spacing.sm,
-  },
-  branchHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     gap: spacing.md,
   },
-  switchPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
+  rowCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
-  section: {
-    gap: spacing.sm,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  divider: {
-    height: 1,
-    marginLeft: 56,
+  sectionBlock: {
+    gap: spacing.md,
+  },
+  metricsGrid: {
+    gap: spacing.md,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  stackSm: {
+    gap: spacing.sm + 2,
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

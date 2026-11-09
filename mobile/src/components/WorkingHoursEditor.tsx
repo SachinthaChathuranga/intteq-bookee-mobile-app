@@ -1,140 +1,135 @@
-import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Switch, TextInput, View } from 'react-native';
 import type { WorkingHoursDay } from '../api/owner';
 import { useT } from '../i18n';
 import type { TranslationKey } from '../i18n/en';
 import { useTheme } from '../theme/ThemeProvider';
+import { radius, spacing } from '../ui/tokens';
 import { AppText } from './AppText';
 
 interface Props {
   value: WorkingHoursDay[];
-  onChange: (hours: WorkingHoursDay[]) => void;
+  onChange: (days: WorkingHoursDay[]) => void;
 }
 
-const DEFAULT_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const DEFAULT_DAYS: WorkingHoursDay[] = [0, 1, 2, 3, 4, 5, 6].map((d) => ({
+  day_of_week: d,
+  open_time: '09:00',
+  close_time: '18:00',
+  is_closed: d === 0,
+}));
 
 export function WorkingHoursEditor({ value, onChange }: Props) {
   const t = useT();
   const { colors } = useTheme();
 
-  // Ensure all 7 days exist in state
-  const hoursMap = new Map<number, WorkingHoursDay>();
-  for (const h of value) {
-    hoursMap.set(h.day_of_week, h);
-  }
+  const days = value.length === 7 ? value : DEFAULT_DAYS;
 
-  const normalized: WorkingHoursDay[] = DEFAULT_DAYS.map((day) => {
-    return (
-      hoursMap.get(day) ?? {
-        day_of_week: day,
-        open_time: '09:00',
-        close_time: '20:00',
-        is_closed: day === 0, // Sunday default closed
-      }
+  const updateDay = (dayOfWeek: number, patch: Partial<WorkingHoursDay>) => {
+    const next = days.map((d) =>
+      d.day_of_week === dayOfWeek ? { ...d, ...patch } : d,
     );
-  });
-
-  const updateDay = (day: number, patch: Partial<WorkingHoursDay>) => {
-    const updated = normalized.map((item) => (item.day_of_week === day ? { ...item, ...patch } : item));
-    onChange(updated);
-  };
-
-  const cleanTime = (tStr: string) => {
-    // Trim seconds if given (e.g., '09:00:00' -> '09:00')
-    return tStr.slice(0, 5);
+    onChange(next);
   };
 
   return (
     <View style={styles.container}>
-      <AppText variant="body" style={{ fontWeight: '700' }}>
-        {t('branch.workingHours')}
-      </AppText>
+      <View style={styles.headerRow}>
+        <Ionicons name="time-outline" size={18} color={colors.primary} />
+        <AppText variant="heading3">{t('branch.workingHours')}</AppText>
+      </View>
 
-      {normalized.map((dayItem) => {
-        const dayKey = `day.${dayItem.day_of_week}` as TranslationKey;
-        const isClosed = dayItem.is_closed;
+      {days.map((d) => {
+        const dayKey = `day.${d.day_of_week}` as TranslationKey;
+        const isOpen = !d.is_closed;
 
         return (
           <View
-            key={dayItem.day_of_week}
+            key={d.day_of_week}
             style={[
-              styles.dayRow,
+              styles.row,
               {
                 backgroundColor: colors.surface,
-                borderColor: colors.border,
+                borderColor: isOpen ? colors.border : colors.divider,
               },
             ]}
           >
-            <View style={styles.dayHeader}>
-              <AppText variant="body" style={{ fontWeight: '600', flex: 1 }}>
-                {t(dayKey)}
-              </AppText>
-              <TouchableOpacity
-                onPress={() => updateDay(dayItem.day_of_week, { is_closed: !isClosed })}
-                style={[
-                  styles.statusToggle,
-                  {
-                    backgroundColor: isClosed ? colors.background : colors.surface,
-                    borderColor: isClosed ? colors.border : colors.success,
-                  },
-                ]}
-              >
+            <View style={styles.topLine}>
+              <View style={styles.dayLabelGroup}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: isOpen ? colors.success : colors.textMuted },
+                  ]}
+                />
+                <AppText variant="bodyBold">{t(dayKey)}</AppText>
+              </View>
+              <View style={styles.switchGroup}>
                 <AppText
                   variant="caption"
-                  style={{
-                    color: isClosed ? colors.textMuted : colors.success,
-                    fontWeight: '700',
-                  }}
+                  style={{ color: isOpen ? colors.success : colors.textMuted, fontWeight: '600' }}
                 >
-                  {isClosed ? t('branch.closed') : t('branch.open')}
+                  {isOpen ? t('branch.open') : t('branch.closed')}
                 </AppText>
-              </TouchableOpacity>
+                <Switch
+                  value={isOpen}
+                  onValueChange={(open) => updateDay(d.day_of_week, { is_closed: !open })}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.onPrimary}
+                />
+              </View>
             </View>
 
-            {!isClosed && (
-              <View style={styles.timesContainer}>
-                <View style={styles.timeBlock}>
-                  <AppText variant="caption">{t('branch.openTime')}</AppText>
+            {isOpen ? (
+              <View style={[styles.timesRow, { borderTopColor: colors.divider }]}>
+                <View style={styles.timeField}>
+                  <AppText variant="label" style={{ color: colors.textMuted }}>
+                    {t('branch.openTime')}
+                  </AppText>
                   <TextInput
-                    value={cleanTime(dayItem.open_time)}
+                    value={d.open_time.slice(0, 5)}
+                    onChangeText={(txt) => updateDay(d.day_of_week, { open_time: txt })}
                     placeholder="09:00"
-                    placeholderTextColor={colors.textMuted}
-                    maxLength={5}
-                    onChangeText={(txt) => updateDay(dayItem.day_of_week, { open_time: txt })}
+                    placeholderTextColor={colors.placeholder}
                     style={[
                       styles.timeInput,
                       {
                         color: colors.text,
-                        backgroundColor: colors.background,
                         borderColor: colors.border,
+                        backgroundColor: colors.inputBackground,
                       },
                     ]}
                   />
                 </View>
 
-                <AppText variant="body" style={{ color: colors.textMuted, paddingTop: 18 }}>
-                  —
-                </AppText>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={colors.textMuted}
+                  style={{ marginTop: 18 }}
+                />
 
-                <View style={styles.timeBlock}>
-                  <AppText variant="caption">{t('branch.closeTime')}</AppText>
+                <View style={styles.timeField}>
+                  <AppText variant="label" style={{ color: colors.textMuted }}>
+                    {t('branch.closeTime')}
+                  </AppText>
                   <TextInput
-                    value={cleanTime(dayItem.close_time)}
-                    placeholder="20:00"
-                    placeholderTextColor={colors.textMuted}
-                    maxLength={5}
-                    onChangeText={(txt) => updateDay(dayItem.day_of_week, { close_time: txt })}
+                    value={d.close_time.slice(0, 5)}
+                    onChangeText={(txt) => updateDay(d.day_of_week, { close_time: txt })}
+                    placeholder="18:00"
+                    placeholderTextColor={colors.placeholder}
                     style={[
                       styles.timeInput,
                       {
                         color: colors.text,
-                        backgroundColor: colors.background,
                         borderColor: colors.border,
+                        backgroundColor: colors.inputBackground,
                       },
                     ]}
                   />
                 </View>
               </View>
-            )}
+            ) : null}
           </View>
         );
       })}
@@ -144,40 +139,58 @@ export function WorkingHoursEditor({ value, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 10,
+    gap: spacing.sm + 2,
+    marginTop: spacing.xs,
   },
-  dayRow: {
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 10,
-  },
-  dayHeader: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  row: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  topLine: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  statusToggle: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  timesContainer: {
+  dayLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.sm,
   },
-  timeBlock: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  switchGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  timesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  timeField: {
     flex: 1,
     gap: 4,
   },
   timeInput: {
-    minHeight: 40,
-    borderRadius: 8,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    fontSize: 16,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },

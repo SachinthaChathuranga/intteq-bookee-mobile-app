@@ -1,96 +1,89 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../i18n';
-import { AddWalkInScreen } from '../../screens/workspaces/AddWalkInScreen';
 import { BarberAppointmentsScreen } from '../../screens/workspaces/BarberAppointmentsScreen';
 import { BarberHomeScreen } from '../../screens/workspaces/BarberHomeScreen';
+import { CompleteServiceModal } from '../../screens/workspaces/CompleteServiceModal';
 import { EndShiftScreen } from '../../screens/workspaces/EndShiftScreen';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
-import { haptics } from '../../ui';
-import type { BarberStackParamList } from '../types';
+import type { BarberStackParamList, BarberTabParamList } from '../types';
 
-const Tab = createBottomTabNavigator<BarberStackParamList>();
+const Stack = createNativeStackNavigator<BarberStackParamList>();
+const Tab = createBottomTabNavigator<BarberTabParamList>();
 
-const ExitPlaceholder = () => null;
+function ExitPlaceholder() {
+  return null;
+}
 
-export function BarberNavigator() {
-  const t = useT();
+function BarberTabs() {
   const { colors } = useTheme();
+  const t = useT();
   const clearWorkspace = useWorkspaceStore((s) => s.clearWorkspace);
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
-        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
+        tabBarStyle: {
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          paddingTop: 8,
+          paddingBottom: bottomPad,
+          height: 58 + bottomPad,
         },
-      }}
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+        tabBarIcon: ({ focused, color }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'people-outline';
+
+          if (route.name === 'QueueTab') {
+            iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'AppointmentsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'ShiftTab') {
+            iconName = focused ? 'time' : 'time-outline';
+          } else if (route.name === 'ExitTab') {
+            iconName = 'exit-outline';
+          }
+
+          return <Ionicons name={iconName} size={22} color={color} />;
+        },
+      })}
     >
       <Tab.Screen
-        name="BarberHome"
-        component={BarberHomeScreen}
-        options={{
-          tabBarLabel: t('nav.queue'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
+        name="QueueTab"
+        component={BarberHomeScreen as any}
+        options={{ title: t('nav.queue') }}
       />
       <Tab.Screen
-        name="BarberAppointments"
+        name="AppointmentsTab"
         component={BarberAppointmentsScreen}
-        options={{
-          tabBarLabel: t('nav.appointments'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
+        options={{ title: t('nav.appointments') }}
       />
       <Tab.Screen
-        name="AddWalkIn"
-        component={AddWalkInScreen as any}
-        options={{
-          tabBarLabel: t('nav.walkin'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="EndShift"
+        name="ShiftTab"
         component={EndShiftScreen as any}
-        options={{
-          tabBarLabel: t('nav.shift'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="timer-outline" size={size} color={color} />
-          ),
-        }}
+        options={{ title: t('nav.shift') }}
       />
       <Tab.Screen
-        name="ExitWorkspace"
-        component={ExitPlaceholder as any}
-        options={{
-          tabBarLabel: t('nav.exitWorkspace'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="arrow-back-circle-outline" size={size} color={color} />
-          ),
-        }}
+        name="ExitTab"
+        component={ExitPlaceholder}
+        options={{ title: t('nav.exitWorkspace') }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            haptics.light();
             clearWorkspace();
           },
         }}
@@ -99,3 +92,17 @@ export function BarberNavigator() {
   );
 }
 
+export function BarberNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="BarberTabs" component={BarberTabs} />
+      <Stack.Screen name="BarberHome" component={BarberHomeScreen} />
+      <Stack.Screen
+        name="CompleteService"
+        component={CompleteServiceModal}
+        options={{ presentation: 'modal' }}
+      />
+      <Stack.Screen name="EndShift" component={EndShiftScreen} />
+    </Stack.Navigator>
+  );
+}

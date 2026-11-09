@@ -1,11 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
 import { lightImpact } from './haptics';
-import { radius, spacing, typography } from './tokens';
+import { radius, spacing } from './tokens';
 
-interface Props {
+export interface OptionCardProps {
   icon?: ReactNode;
+  leftElement?: ReactNode;
+  rightElement?: ReactNode;
   title: string;
   subtitle?: string;
   selected?: boolean;
@@ -16,14 +20,17 @@ interface Props {
 
 export function OptionCard({
   icon,
+  leftElement,
+  rightElement,
   title,
   subtitle,
   selected = false,
   onPress,
   actionText,
   onActionPress,
-}: Props) {
+}: OptionCardProps) {
   const { colors } = useTheme();
+  const resolvedLeft = leftElement ?? icon;
 
   const handlePress = () => {
     if (onPress) {
@@ -46,51 +53,46 @@ export function OptionCard({
         },
       ]}
     >
-      {icon ? (
-        <View
-          style={[
-            styles.iconWrapper,
-            {
-              backgroundColor: selected ? colors.primary : colors.background,
-            },
-          ]}
-        >
-          {icon}
-        </View>
+      {resolvedLeft ? (
+        <View style={styles.leftWrap}>{resolvedLeft}</View>
       ) : null}
 
       <View style={styles.textCol}>
-        <Text
-          style={[
-            typography.bodyBold,
-            {
-              color: selected ? colors.primary : colors.text,
-              fontSize: 16,
-            },
-          ]}
+        <AppText
+          variant="bodyBold"
+          style={{
+            color: selected ? colors.primary : colors.text,
+            fontSize: 15,
+          }}
         >
           {title}
-        </Text>
+        </AppText>
         {subtitle ? (
-          <Text style={[typography.caption, { color: colors.textMuted }]}>
+          <AppText variant="caption" style={{ color: colors.textMuted }}>
             {subtitle}
-          </Text>
+          </AppText>
         ) : null}
       </View>
 
-      {actionText ? (
+      {rightElement ? (
+        rightElement
+      ) : actionText ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => {
             lightImpact();
             onActionPress?.();
           }}
-          style={[styles.actionPill, { backgroundColor: colors.border }]}
+          style={[styles.actionPill, { backgroundColor: colors.inputBackground }]}
         >
-          <Text style={[typography.caption, { color: colors.text, fontWeight: '700' }]}>
+          <AppText variant="label" style={{ color: colors.text }}>
             {actionText}
-          </Text>
+          </AppText>
         </Pressable>
+      ) : selected ? (
+        <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+          <Ionicons name="checkmark" size={14} color={colors.onPrimary} />
+        </View>
       ) : null}
     </Pressable>
   );
@@ -101,14 +103,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    borderRadius: radius.card,
+    borderRadius: radius.lg,
     gap: spacing.md,
-    marginVertical: spacing.xs,
   },
-  iconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  leftWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -117,8 +115,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   actionPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    borderRadius: radius.pill,
+    borderRadius: radius.full,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,16 +1,26 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View } from 'react-native';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
-import { palette } from '../theme/palette';
-import { radius, spacing, typography } from './tokens';
+import { radius } from './tokens';
 
-interface Props {
+export interface RatingBadgeProps {
   rating: number | string;
   reviewsCount?: number;
+  count?: number;
   variant?: 'pill' | 'bookmark';
 }
 
-export function RatingBadge({ rating, reviewsCount, variant = 'pill' }: Props) {
+export function RatingBadge({
+  rating,
+  reviewsCount,
+  count,
+  variant = 'pill',
+}: RatingBadgeProps) {
   const { colors } = useTheme();
+  const resolvedCount = count ?? reviewsCount;
+  const formattedRating =
+    typeof rating === 'number' ? rating.toFixed(1) : rating;
 
   if (variant === 'bookmark') {
     return (
@@ -24,15 +34,15 @@ export function RatingBadge({ rating, reviewsCount, variant = 'pill' }: Props) {
         ]}
       >
         <View style={styles.row}>
-          <Text style={[styles.star, { color: colors.primary }]}>★</Text>
-          <Text style={[typography.bodyBold, { color: colors.text, fontSize: 15 }]}>
-            {rating}
-          </Text>
+          <Ionicons name="star" size={13} color={colors.star} />
+          <AppText variant="bodyBold" style={{ fontSize: 14 }}>
+            {formattedRating}
+          </AppText>
         </View>
-        {reviewsCount !== undefined ? (
-          <Text style={[typography.caption, { color: colors.textMuted, fontSize: 11 }]}>
-            ({reviewsCount})
-          </Text>
+        {resolvedCount !== undefined ? (
+          <AppText variant="caption" style={{ fontSize: 11, color: colors.textMuted }}>
+            ({resolvedCount})
+          </AppText>
         ) : null}
       </View>
     );
@@ -43,19 +53,19 @@ export function RatingBadge({ rating, reviewsCount, variant = 'pill' }: Props) {
       style={[
         styles.pill,
         {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.warningLight,
           borderColor: colors.border,
         },
       ]}
     >
-      <Text style={[styles.star, { color: colors.primary }]}>★</Text>
-      <Text style={[typography.caption, { color: colors.text, fontWeight: '700' }]}>
-        {rating}
-      </Text>
-      {reviewsCount !== undefined ? (
-        <Text style={[typography.caption, { color: colors.textMuted, fontSize: 11 }]}>
-          ({reviewsCount})
-        </Text>
+      <Ionicons name="star" size={12} color={colors.star} />
+      <AppText variant="label" style={{ color: colors.text, fontSize: 12 }}>
+        {formattedRating}
+      </AppText>
+      {resolvedCount !== undefined ? (
+        <AppText variant="caption" style={{ color: colors.textMuted, fontSize: 11 }}>
+          ({resolvedCount})
+        </AppText>
       ) : null}
     </View>
   );
@@ -66,20 +76,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    shadowColor: palette.neutral[900],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
   },
   bookmark: {
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: radius.sm,
     borderWidth: 1,
   },
@@ -87,9 +91,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-  },
-  star: {
-    fontSize: 14,
-    fontWeight: '800',
   },
 });

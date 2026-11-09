@@ -1,10 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../../components/AppText';
-import { Badge } from '../../components/Badge';
 import { useT } from '../../i18n';
+import type { TranslationKey } from '../../i18n/en';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { IconButton } from '../../ui/Button';
+import { lightImpact } from '../../ui/haptics';
+import { radius, spacing } from '../../ui/tokens';
 
 interface Props {
   title: string;
@@ -13,90 +17,126 @@ interface Props {
 
 export function WorkspaceHeader({ title, onBack }: Props) {
   const t = useT();
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+  const clearWorkspace = useWorkspaceStore((s) => s.clearWorkspace);
 
-  const businessName = activeWorkspace?.business_name ?? '';
+  const roleLabel = activeWorkspace
+    ? t(`role.${activeWorkspace.role}` as TranslationKey)
+    : t('workspace.activeBanner');
+
+  const subtitle = [
+    roleLabel,
+    activeWorkspace?.business_name,
+    activeWorkspace?.branch_name,
+  ]
+    .filter(Boolean)
+    .join(' • ');
 
   return (
     <View
       style={[
         styles.container,
         {
-          paddingTop: insets.top + 8,
-          backgroundColor: colors.surface,
+          paddingTop: insets.top + spacing.sm,
+          backgroundColor: colors.navigationBackground,
           borderBottomColor: colors.border,
         },
       ]}
     >
-      <View style={styles.topRow}>
-        {onBack ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onBack}
-            style={({ pressed }) => [
-              styles.backButton,
-              { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <AppText style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
-              {`← ${t('common.back')}`}
-            </AppText>
-          </Pressable>
-        ) : (
-          <View style={{ flex: 1 }}>
-            {businessName ? (
-              <AppText variant="caption" style={{ color: colors.textMuted, fontWeight: '700' }}>
-                {businessName}
+      <View style={styles.row}>
+        <View style={styles.leftCluster}>
+          {onBack ? (
+            <IconButton
+              icon="arrow-back"
+              size="sm"
+              variant="subtle"
+              onPress={onBack}
+              accessibilityLabel={t('common.back')}
+            />
+          ) : null}
+          <View style={styles.titleStack}>
+            <View style={styles.badgeRow}>
+              <View style={[styles.roleDot, { backgroundColor: colors.primary }]} />
+              <AppText
+                variant="label"
+                style={{ color: colors.primary, fontSize: 11 }}
+                numberOfLines={1}
+              >
+                {subtitle}
               </AppText>
-            ) : null}
+            </View>
+            <AppText variant="heading2" numberOfLines={1}>
+              {title}
+            </AppText>
           </View>
-        )}
+        </View>
 
-        {activeWorkspace ? (
-          <Badge
-            label={t(`role.${activeWorkspace.role}`)}
-            variant={
-              activeWorkspace.role === 'OWNER'
-                ? 'primary'
-                : activeWorkspace.role === 'BARBER'
-                ? 'success'
-                : 'warning'
-            }
-          />
-        ) : null}
-      </View>
-
-      <View style={styles.titleRow}>
-        <AppText variant="title" style={{ fontSize: 26, lineHeight: 32, fontWeight: '800' }}>
-          {title}
-        </AppText>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            lightImpact();
+            clearWorkspace();
+          }}
+          style={({ pressed }) => [
+            styles.exitPill,
+            {
+              backgroundColor: colors.primaryLight,
+              borderColor: colors.primaryBorder,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
+          <AppText variant="label" style={{ color: colors.primary, fontSize: 11 }}>
+            {t('nav.exitWorkspace')}
+          </AppText>
+        </Pressable>
       </View>
     </View>
   );
-
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm + 2,
     borderBottomWidth: 1,
-    gap: 12,
   },
-  topRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  backButton: {
-    paddingHorizontal: 12,
+  leftCluster: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+  },
+  titleStack: {
+    flex: 1,
+    gap: 1,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  exitPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: radius.full,
     borderWidth: 1,
-  },
-  titleRow: {
-    gap: 2,
   },
 });

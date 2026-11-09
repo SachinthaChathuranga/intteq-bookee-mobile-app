@@ -1,22 +1,30 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Switch, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { createService, fetchServices, updateService } from '../../api/owner';
 import { AppText } from '../../components/AppText';
-import { Button } from '../../components/Button';
-import { Screen } from '../../components/Screen';
-import { TextField } from '../../components/TextField';
 import { useT } from '../../i18n';
-import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { OwnerStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useTheme } from '../../theme/ThemeProvider';
+import {
+  Button,
+  Card,
+  Input,
+  Screen,
+  haptics,
+  radius,
+  spacing,
+  useToast,
+} from '../../ui';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'ServiceEdit'>;
 
 export function ServiceEditScreen({ route, navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const { branchId, serviceId } = route.params;
   const isEditing = Boolean(serviceId);
@@ -27,7 +35,6 @@ export function ServiceEditScreen({ route, navigation }: Props) {
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // If editing, find service in cached list or fetch
   const servicesQuery = useQuery({
     queryKey: ['services', branchId],
     queryFn: () => fetchServices(branchId),
@@ -52,8 +59,10 @@ export function ServiceEditScreen({ route, navigation }: Props) {
       const priceNum = parseFloat(price);
 
       if (!name.trim()) throw new Error(t('name.required'));
-      if (isNaN(durNum) || durNum <= 0) throw new Error('Valid duration in minutes is required');
-      if (isNaN(priceNum) || priceNum < 0) throw new Error('Valid price is required');
+      if (isNaN(durNum) || durNum <= 0)
+        throw new Error('Valid duration in minutes is required');
+      if (isNaN(priceNum) || priceNum < 0)
+        throw new Error('Valid price is required');
 
       if (isEditing && serviceId) {
         return await updateService(branchId, serviceId, {
@@ -62,18 +71,18 @@ export function ServiceEditScreen({ route, navigation }: Props) {
           price: priceNum,
           is_active: isActive,
         });
-      } else {
-        return await createService(branchId, {
-          name: name.trim(),
-          duration_minutes: durNum,
-          price: priceNum,
-          is_active: isActive,
-        });
       }
+      return await createService(branchId, {
+        name: name.trim(),
+        duration_minutes: durNum,
+        price: priceNum,
+        is_active: isActive,
+      });
     },
     onSuccess: () => {
+      haptics.success();
       queryClient.invalidateQueries({ queryKey: ['services', branchId] });
-      Alert.alert(t('common.done'), t('service.saved'));
+      showToast({ title: t('service.saved'), tone: 'success' });
       navigation.goBack();
     },
     onError: (err: any) => {
@@ -82,81 +91,103 @@ export function ServiceEditScreen({ route, navigation }: Props) {
   });
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.flex}>
       <WorkspaceHeader
         title={isEditing ? t('service.edit') : t('service.add')}
         onBack={() => navigation.goBack()}
       />
-      <Screen>
-        <View style={styles.form}>
-          <TextField
-            label={t('service.name')}
-            placeholder="e.g. Classic Haircut"
-            value={name}
-            onChangeText={(txt) => {
-              setName(txt);
-              setError(null);
-            }}
-          />
-
-          <TextField
-            label={t('service.duration')}
-            placeholder="30"
-            keyboardType="number-pad"
-            value={duration}
-            onChangeText={setDuration}
-          />
-
-          <TextField
-            label={t('service.price')}
-            placeholder="1500"
-            keyboardType="numeric"
-            value={price}
-            onChangeText={setPrice}
-          />
-
-          <View
-            style={[
-              styles.switchRow,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <AppText variant="body" style={{ fontWeight: '600' }}>
-              {isActive ? t('service.active') : t('service.inactive')}
-            </AppText>
-            <Switch
-              value={isActive}
-              onValueChange={setIsActive}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.surface}
+      <Screen scroll={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Card variant="elevated" padding="lg" style={styles.formCard}>
+            <Input
+              label={t('service.name')}
+              placeholder="e.g. Classic Haircut"
+              value={name}
+              onChangeText={(txt) => {
+                setName(txt);
+                setError(null);
+              }}
+              leftIcon="cut-outline"
             />
-          </View>
+
+            <Input
+              label={t('service.duration')}
+              placeholder="30"
+              keyboardType="number-pad"
+              value={duration}
+              onChangeText={setDuration}
+              leftIcon="time-outline"
+            />
+
+            <Input
+              label={t('service.price')}
+              placeholder="1500"
+              keyboardType="numeric"
+              value={price}
+              onChangeText={setPrice}
+              leftIcon="pricetag-outline"
+            />
+
+            <View
+              style={[
+                styles.switchRow,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={{ gap: 2 }}>
+                <AppText variant="bodyBold">
+                  {isActive ? t('service.active') : t('service.inactive')}
+                </AppText>
+                <AppText variant="caption">{t('common.status')}</AppText>
+              </View>
+              <Switch
+                value={isActive}
+                onValueChange={setIsActive}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.onPrimary}
+              />
+            </View>
+          </Card>
 
           {error ? <AppText variant="error">{error}</AppText> : null}
 
-          <View style={{ marginTop: 16 }}>
-            <Button
-              label={t('service.save')}
-              onPress={() => saveMutation.mutate()}
-              loading={saveMutation.isPending}
-            />
-          </View>
-        </View>
+          <Button
+            label={t('service.save')}
+            size="lg"
+            leftIcon="checkmark-circle"
+            onPress={() => saveMutation.mutate()}
+            loading={saveMutation.isPending}
+          />
+        </ScrollView>
       </Screen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  form: {
-    gap: 16,
+  flex: {
+    flex: 1,
+  },
+  scroll: {
+    gap: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  formCard: {
+    gap: spacing.md,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    padding: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
   },
 });

@@ -3,10 +3,12 @@ import { useEffect, useRef } from 'react';
 import { API_URL } from '../config/app';
 import { useAuthStore } from '../store/authStore';
 
-export function useQueueSocket(branchId: string | null | undefined) {
+export function useQueueSocket(branchId: string | null | undefined, onEvent?: () => void) {
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.accessToken);
   const wsRef = useRef<WebSocket | null>(null);
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
   useEffect(() => {
     if (!branchId) return;
@@ -39,11 +41,13 @@ export function useQueueSocket(branchId: string | null | undefined) {
             if (data.branchId === branchId) {
               if (data.type === 'SHIFT_UPDATED') {
                 queryClient.invalidateQueries({ queryKey: ['barber-shift', branchId] });
+                onEventRef.current?.();
               } else if (data.type === 'QUEUE_UPDATED') {
                 queryClient.invalidateQueries({ queryKey: ['barber-queue', branchId] });
                 queryClient.invalidateQueries({ queryKey: ['barber-shift', branchId] });
                 queryClient.invalidateQueries({ queryKey: ['live-floor', branchId] });
                 queryClient.invalidateQueries({ queryKey: ['customer-active-queue'] });
+                onEventRef.current?.();
               }
             }
           } catch {

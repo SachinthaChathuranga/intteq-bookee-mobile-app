@@ -1,474 +1,292 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { fetchServices } from '../../api/owner';
 import {
   fetchBranchAvailability,
   fetchBranchBarbers,
-  fetchBranchServices,
   type BranchBarber,
-  type BranchService,
+  type SlotAvailability,
 } from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
-import type { ReceptionistStackParamList } from '../../navigation/types';
 import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
-  Avatar,
   Badge,
-  Card,
+  Chip,
   EmptyState,
   Screen,
-  Skeleton,
+  SectionHeader,
+  ServiceItem,
+  SkeletonCard,
+  haptics,
   radius,
   spacing,
 } from '../../ui';
-import { haptics } from '../../ui/haptics';
-import { formatCurrency } from '../../utils/format';
 
-type Props = NativeStackScreenProps<ReceptionistStackParamList, 'AvailabilityLookup'>;
-
-function getNext7DaysColombo() {
-  const days: { dateStr: string; weekday: string; dayNum: string; isToday: boolean; isTomorrow: boolean }[] = [];
+function getNext7Days(): { dateStr: string; dayName: string; dayNum: string; isToday: boolean }[] {
+  const days: { dateStr: string; dayName: string; dayNum: string; isToday: boolean }[] = [];
   const now = new Date();
-
   for (let i = 0; i < 7; i++) {
-    const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Colombo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d);
-
-    const weekday = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Colombo',
-      weekday: 'short',
-    }).format(d);
-
-    const dayNum = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Colombo',
-      day: 'numeric',
-    }).format(d);
-
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
     days.push({
       dateStr,
-      weekday,
-      dayNum,
+      dayName,
+      dayNum: String(d.getDate()),
       isToday: i === 0,
-      isTomorrow: i === 1,
     });
   }
   return days;
 }
 
-export function ReceptionistAvailabilityScreen({ navigation }: Props) {
+export function ReceptionistAvailabilityScreen() {
   const t = useT();
   const { colors } = useTheme();
-
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
-  const activeBranchId = useWorkspaceStore((s) => s.activeBranchId) ?? activeWorkspace?.branch_id;
+  const branchId = activeWorkspace?.branch_id;
 
-  const sevenDays = useMemo(() => getNext7DaysColombo(), []);
-  const [selectedDate, setSelectedDate] = useState<string>(sevenDays[0]?.dateStr ?? '');
+  const days = useMemo(() => getNext7Days(), []);
+  const [selectedDate, setSelectedDate] = useState<string>(days[0].dateStr);
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
 
-  // Branch Barbers
-  const barbersQuery = useQuery({
-    queryKey: ['branch-barbers', activeBranchId],
-    queryFn: () => fetchBranchBarbers(activeBranchId!),
-    enabled: Boolean(activeBranchId),
-  });
-
-  const barbers = barbersQuery.data?.barbers ?? [];
-
-  // Branch Services
   const servicesQuery = useQuery({
-    queryKey: ['branch-services', activeBranchId],
-    queryFn: () => fetchBranchServices(activeBranchId!),
-    enabled: Boolean(activeBranchId),
+    queryKey: ['services', branchId],
+    queryFn: () => fetchServices(branchId!),
+    enabled: Boolean(branchId),
   });
 
-  const services = servicesQuery.data?.services ?? [];
+  const barbersQuery = useQuery({
+    queryKey: ['salon-branch-barbers', branchId],
+    queryFn: () => fetchBranchBarbers(branchId!),
+    enabled: Boolean(branchId),
+  });
 
-  // Toggle Service
-  const toggleService = (serviceId: string) => {
-    haptics.selection();
-    setSelectedServiceIds((prev) =>
-      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId],
-    );
-  };
-
-  const selectedServices = useMemo(() => {
-    return services.filter((s) => selectedServiceIds.includes(s.id));
-  }, [services, selectedServiceIds]);
-
-  const totalDuration = useMemo(() => {
-    return selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
-  }, [selectedServices]);
-
-  const totalPrice = useMemo(() => {
-    return selectedServices.reduce((sum, s) => sum + s.price, 0);
-  }, [selectedServices]);
-
-  // Availability Query
   const availabilityQuery = useQuery({
     queryKey: [
-      'branch-availability',
-      activeBranchId,
+      'receptionist-availability',
+      branchId,
       selectedDate,
-      selectedServiceIds,
-      selectedBarberId,
+      selectedServiceIds.join(','),
+      selectedBarberId ?? 'ANY',
     ],
     queryFn: () =>
       fetchBranchAvailability(
-        activeBranchId!,
+        branchId!,
         selectedDate,
         selectedServiceIds,
-        selectedBarberId || undefined,
+        selectedBarberId,
       ),
-    enabled: Boolean(activeBranchId) && Boolean(selectedDate) && selectedServiceIds.length > 0,
+    enabled: Boolean(branchId && selectedServiceIds.length > 0),
   });
 
-  const availability = availabilityQuery.data;
+  const toggleService = (id: string) => {
+    setSelectedServiceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const services = (servicesQuery.data ?? []).filter((s) => s.is_active);
+  const barbers = barbersQuery.data?.barbers ?? [];
+  const avail = availabilityQuery.data;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.flex}>
       <WorkspaceHeader title={t('receptionist.availabilityTitle')} />
-
-      <Screen
-        scrollable
-        refreshing={availabilityQuery.isRefetching}
-        onRefresh={() => availabilityQuery.refetch()}
-        contentContainerStyle={styles.container}
-      >
-        {/* 1. Date Strip */}
-        <View style={styles.section}>
-          <AppText variant="bodyBold" style={{ fontSize: 16 }}>
-            {t('appointments.selectDate')}
-          </AppText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-          >
-            {sevenDays.map((day) => {
-              const isSelected = selectedDate === day.dateStr;
-              let dayLabel = day.weekday;
-              if (day.isToday) dayLabel = t('booking.today');
-              else if (day.isTomorrow) dayLabel = t('booking.tomorrow');
-
-              return (
-                <Pressable
-                  key={day.dateStr}
-                  onPress={() => {
-                    haptics.selection();
-                    setSelectedDate(day.dateStr);
-                  }}
-                  style={[
-                    styles.dateChip,
-                    {
-                      backgroundColor: isSelected ? colors.primary : colors.surface,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <AppText
-                    variant="caption"
-                    style={{
-                      color: isSelected ? colors.onPrimary : colors.textMuted,
-                      fontWeight: '600',
-                    }}
-                  >
-                    {dayLabel}
-                  </AppText>
-                  <AppText
-                    variant="heading"
-                    style={{
-                      color: isSelected ? colors.onPrimary : colors.text,
-                      fontSize: 16,
-                      marginTop: 2,
-                    }}
-                  >
-                    {day.dayNum}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* 2. Barber Selector Strip */}
-        <View style={styles.section}>
-          <AppText variant="bodyBold" style={{ fontSize: 16 }}>
-            {t('booking.stepBarber')}
-          </AppText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-          >
-            {/* Any Barber Chip */}
-            <Pressable
-              onPress={() => {
-                haptics.selection();
-                setSelectedBarberId(null);
-              }}
-              style={[
-                styles.barberChip,
-                {
-                  backgroundColor: selectedBarberId === null ? colors.primary : colors.surface,
-                  borderColor: selectedBarberId === null ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name="people"
-                size={16}
-                color={selectedBarberId === null ? colors.onPrimary : colors.primary}
-              />
-              <AppText
-                variant="caption"
-                style={{
-                  color: selectedBarberId === null ? colors.onPrimary : colors.text,
-                  fontWeight: '700',
-                }}
-              >
-                {t('receptionist.allBarbers')}
-              </AppText>
-            </Pressable>
-
-            {barbers.map((b) => {
-              const isSelected = selectedBarberId === b.id;
-              return (
-                <Pressable
-                  key={b.id}
-                  onPress={() => {
-                    haptics.selection();
-                    setSelectedBarberId(b.id);
-                  }}
-                  style={[
-                    styles.barberChip,
-                    {
-                      backgroundColor: isSelected ? colors.primary : colors.surface,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Avatar name={b.name || 'Barber'} size="sm" />
-                  <AppText
-                    variant="caption"
-                    style={{
-                      color: isSelected ? colors.onPrimary : colors.text,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {b.name}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* 3. Services Selector */}
-        <View style={styles.section}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <AppText variant="bodyBold" style={{ fontSize: 16 }}>
-              {t('receptionist.selectServices')}
-            </AppText>
-            {selectedServices.length > 0 && (
-              <Badge
-                label={`${selectedServices.length} • ${totalDuration}m • ${formatCurrency(totalPrice)}`}
-                variant="primary"
-              />
-            )}
+      <Screen scroll={false} padded={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. Select Services */}
+          <View style={styles.section}>
+            <SectionHeader
+              title={t('receptionist.selectServices')}
+              subtitle={t('receptionist.selectServicesHint')}
+              rightElement={
+                selectedServiceIds.length > 0 ? (
+                  <Badge
+                    label={t('booking.servicesSelected', { count: selectedServiceIds.length })}
+                    tone="primary"
+                    size="sm"
+                  />
+                ) : undefined
+              }
+            />
+            <View style={{ gap: spacing.sm }}>
+              {services.map((s) => {
+                const isSelected = selectedServiceIds.includes(s.id);
+                return (
+                  <ServiceItem
+                    key={s.id}
+                    name={s.name}
+                    durationMinutes={s.duration_minutes}
+                    durationLabel={t('service.durationMins', { minutes: s.duration_minutes })}
+                    price={s.price}
+                    selected={isSelected}
+                    onPress={() => toggleService(s.id)}
+                  />
+                );
+              })}
+            </View>
           </View>
 
-          {servicesQuery.isLoading ? (
-            <View style={{ gap: spacing.sm }}>
-              <Skeleton width="100%" height={56} borderRadius={radius.card} />
-              <Skeleton width="100%" height={56} borderRadius={radius.card} />
-            </View>
-          ) : (
-            <View style={{ gap: spacing.sm }}>
-              {services.map((svc) => {
-                const isSelected = selectedServiceIds.includes(svc.id);
+          {/* 2. Select Date */}
+          <View style={styles.section}>
+            <SectionHeader title={t('booking.date')} />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateScroll}
+            >
+              {days.map((d) => {
+                const isSelected = d.dateStr === selectedDate;
                 return (
                   <Pressable
-                    key={svc.id}
-                    onPress={() => toggleService(svc.id)}
+                    key={d.dateStr}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedDate(d.dateStr);
+                    }}
                     style={[
-                      styles.serviceItem,
+                      styles.dateChip,
                       {
-                        backgroundColor: isSelected ? colors.primaryLight : colors.surface,
+                        backgroundColor: isSelected ? colors.primary : colors.surface,
                         borderColor: isSelected ? colors.primary : colors.border,
                       },
                     ]}
                   >
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <AppText variant="bodyBold" style={{ fontSize: 15 }}>
-                        {svc.name}
-                      </AppText>
-                      <AppText variant="caption" style={{ color: colors.textMuted }}>
-                        {svc.duration_minutes} mins • {formatCurrency(svc.price)}
-                      </AppText>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.checkbox,
-                        {
-                          backgroundColor: isSelected ? colors.primary : colors.surface,
-                          borderColor: isSelected ? colors.primary : colors.border,
-                        },
-                      ]}
+                    <AppText
+                      variant="label"
+                      style={{ color: isSelected ? colors.onPrimary : colors.textMuted }}
                     >
-                      {isSelected ? (
-                        <Ionicons name="checkmark" size={14} color={colors.onPrimary} />
-                      ) : null}
-                    </View>
+                      {d.isToday ? t('booking.today') : d.dayName}
+                    </AppText>
+                    <AppText
+                      variant="heading3"
+                      style={{ color: isSelected ? colors.onPrimary : colors.text }}
+                    >
+                      {d.dayNum}
+                    </AppText>
                   </Pressable>
                 );
               })}
-            </View>
-          )}
-        </View>
+            </ScrollView>
+          </View>
 
-        {/* 4. Available Slots Section */}
-        <View style={styles.section}>
-          <AppText variant="bodyBold" style={{ fontSize: 16 }}>
-            {t('receptionist.availableSlots')}
-          </AppText>
-
-          {selectedServiceIds.length === 0 ? (
-            <Card style={{ padding: spacing.lg, alignItems: 'center' }}>
-              <Ionicons name="cut-outline" size={32} color={colors.textMuted} />
-              <AppText variant="caption" style={{ color: colors.textMuted, textAlign: 'center', marginTop: 8 }}>
-                {t('receptionist.selectServicesHint')}
-              </AppText>
-            </Card>
-          ) : availabilityQuery.isLoading ? (
-            <View style={styles.slotsGrid}>
-              {Array.from({ length: 9 }).map((_, i) => (
-                <Skeleton key={i} width="30%" height={46} borderRadius={radius.input} />
+          {/* 3. Select Barber Filter */}
+          <View style={styles.section}>
+            <SectionHeader title={t('booking.barber')} />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.barberScroll}
+            >
+              <Chip
+                label={t('receptionist.allBarbers')}
+                selected={selectedBarberId === null}
+                leftIcon="people-outline"
+                onPress={() => setSelectedBarberId(null)}
+              />
+              {barbers.map((b: BranchBarber) => (
+                <Chip
+                  key={b.id}
+                  label={b.name || t('term.barber')}
+                  selected={selectedBarberId === b.id}
+                  leftIcon="cut-outline"
+                  onPress={() => setSelectedBarberId(b.id)}
+                />
               ))}
-            </View>
-          ) : availability?.is_closed ? (
-            <EmptyState
-              icon={<Ionicons name="calendar-outline" size={36} color={colors.textMuted} />}
-              title={t('booking.closed')}
-              description={t('booking.noSlots')}
-            />
-          ) : !availability?.slots || availability.slots.length === 0 ? (
-            <EmptyState
-              icon={<Ionicons name="time-outline" size={36} color={colors.textMuted} />}
-              title={t('booking.noSlots')}
-              description={t('receptionist.noSlotsFound')}
-            />
-          ) : (
-            <View style={styles.slotsGrid}>
-              {availability.slots.map((slot) => {
-                const isAvailable = slot.available;
-                return (
-                  <View
-                    key={slot.time}
-                    style={[
-                      styles.slotItem,
-                      {
-                        backgroundColor: isAvailable ? colors.surface : colors.background,
-                        borderColor: isAvailable ? colors.primary : colors.border,
-                        opacity: isAvailable ? 1 : 0.4,
-                      },
-                    ]}
-                  >
-                    <AppText
-                      variant="bodyBold"
-                      style={{
-                        color: isAvailable ? colors.text : colors.textMuted,
-                        fontSize: 14,
-                      }}
+            </ScrollView>
+          </View>
+
+          {/* 4. Available Slots Result */}
+          <View style={styles.section}>
+            <SectionHeader title={t('receptionist.availableSlots')} />
+
+            {selectedServiceIds.length === 0 ? (
+              <EmptyState
+                compact
+                icon="options-outline"
+                title={t('receptionist.selectServicesHint')}
+              />
+            ) : availabilityQuery.isLoading ? (
+              <SkeletonCard />
+            ) : avail?.is_closed ? (
+              <EmptyState compact icon="lock-closed-outline" title={t('booking.closed')} />
+            ) : !avail?.slots || avail.slots.filter((s) => s.available).length === 0 ? (
+              <EmptyState compact icon="calendar-outline" title={t('receptionist.noSlotsFound')} />
+            ) : (
+              <View style={styles.slotsGrid}>
+                {avail.slots
+                  .filter((s: SlotAvailability) => s.available)
+                  .map((slot: SlotAvailability) => (
+                    <View
+                      key={slot.start_at}
+                      style={[
+                        styles.slotBadge,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
                     >
-                      {slot.time}
-                    </AppText>
-                    <Badge
-                      label={isAvailable ? 'FREE' : 'BUSY'}
-                      variant={isAvailable ? 'success' : 'neutral'}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+                      <AppText variant="bodyBold" style={{ color: colors.primary }}>
+                        {slot.time}
+                      </AppText>
+                    </View>
+                  ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </Screen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: 40,
+    gap: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   section: {
-    gap: spacing.sm,
+    gap: spacing.sm + 2,
   },
-  chipsRow: {
+  dateScroll: {
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
   },
   dateChip: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.card,
+    width: 64,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 2,
   },
-  barberChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.card,
-    borderWidth: 1,
-  },
-  serviceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    gap: spacing.md,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
+  barberScroll: {
+    gap: spacing.sm,
+    paddingVertical: 2,
   },
   slotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
   },
-  slotItem: {
-    width: '30%',
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.input,
+  slotBadge: {
+    width: '31%',
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
-    gap: 4,
+    alignItems: 'center',
   },
 });

@@ -1,82 +1,81 @@
+import { Ionicons } from '@expo/vector-icons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
 import { AppText } from '../../components/AppText';
-import { BottomSheet, Button } from '../../ui';
 import { useT } from '../../i18n';
+import type { ReceptionistStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useTheme } from '../../theme/ThemeProvider';
+import { Button, Card, Screen, StatusBadge, radius, spacing } from '../../ui';
 
-interface Props {
-  visible: boolean;
-  token: string;
-  customerName?: string | null;
-  estimatedWaitMinutes: number;
-  onDismiss: () => void;
-}
+type Props = NativeStackScreenProps<ReceptionistStackParamList, 'WalkInSuccess'>;
 
-export function WalkInSuccessModal({
-  visible,
-  token,
-  customerName,
-  estimatedWaitMinutes,
-  onDismiss,
-}: Props) {
+export function WalkInSuccessModal({ route, navigation }: Props) {
+  const { token, estimatedWaitMinutes, customerName } = route.params;
   const t = useT();
   const { colors } = useTheme();
 
   return (
-    <BottomSheet visible={visible} onClose={onDismiss} title={t('walkin.tokenGenerated')}>
-      <View style={styles.sheetContent}>
-        <View style={[styles.tokenBadge, { backgroundColor: colors.background, borderColor: colors.primary }]}>
-          <AppText style={[styles.tokenText, { color: colors.primary }]}>{token}</AppText>
-        </View>
+    <View style={styles.flex}>
+      <WorkspaceHeader title={t('walkin.tokenGenerated')} />
+      <Screen>
+        <View style={styles.container}>
+          <Card variant="selected" padding="xl" style={styles.heroCard}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
+              <Ionicons name="ticket" size={34} color={colors.onPrimary} />
+            </View>
+            <AppText variant="heading2" style={styles.centerText}>
+              {customerName}
+            </AppText>
+            <AppText
+              variant="display"
+              style={{
+                fontSize: 48,
+                lineHeight: 56,
+                color: colors.primary,
+                letterSpacing: 2,
+              }}
+            >
+              {token}
+            </AppText>
+            <StatusBadge
+              label={t('walkin.estWait', { time: `${estimatedWaitMinutes} min` })}
+              tone="primary"
+            />
+          </Card>
 
-        {customerName ? (
-          <AppText variant="body" style={{ textAlign: 'center', fontWeight: '700', fontSize: 16 }}>
-            {customerName}
-          </AppText>
-        ) : null}
-
-        <View style={[styles.waitInfo, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <AppText variant="caption" style={{ color: colors.textMuted }}>
-            {t('walkin.estWait', { time: `${estimatedWaitMinutes} mins` })}
-          </AppText>
+          <Button
+            label={t('common.done')}
+            size="lg"
+            onPress={() => navigation.navigate('ReceptionistTabs', { screen: 'FloorTab' })}
+          />
         </View>
-
-        <View style={styles.buttonWrapper}>
-          <Button variant="primary" label={t('common.done')} onPress={onDismiss} />
-        </View>
-      </View>
-    </BottomSheet>
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sheetContent: {
+  flex: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: spacing.xl,
+  },
+  heroCard: {
     alignItems: 'center',
-    gap: 12,
-    paddingBottom: 16,
+    gap: spacing.md,
   },
-  tokenBadge: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 20,
-    borderWidth: 2,
-    marginVertical: 8,
-  },
-  tokenText: {
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  waitInfo: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
+  iconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: radius.full,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonWrapper: {
-    width: '100%',
-    marginTop: 12,
+  centerText: {
+    textAlign: 'center',
   },
 });
-

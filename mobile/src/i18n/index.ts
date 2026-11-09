@@ -1,9 +1,11 @@
 import { getLocales } from 'expo-localization';
 import { useCallback } from 'react';
+import { useSettingsStore, type Language } from '../store/settingsStore';
 import { en, type TranslationKey, type Translations } from './en';
 import { si } from './si';
 import { ta } from './ta';
-import { useSettingsStore, type Language } from '../store/settingsStore';
+
+export const SUPPORTED_LANGUAGES: readonly Language[] = ['en', 'si', 'ta'] as const;
 
 const dictionaries: Record<Language, Translations> = { en, si, ta };
 
@@ -33,4 +35,4 @@ export function useT() {
   );
 }
 
-export type { TranslationKey };
+export type { Language, TranslationKey };

@@ -1,128 +1,179 @@
-import { useState, type ReactNode } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { forwardRef, useState, type ReactNode } from 'react';
 import {
   Pressable,
-  StyleProp,
   StyleSheet,
-  Text,
   TextInput,
   View,
-  ViewStyle,
+  type StyleProp,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing, typography } from './tokens';
 
-interface Props extends TextInputProps {
+export interface InputProps extends TextInputProps {
   label?: string;
   error?: string | null;
-  leftIcon?: ReactNode;
-  rightIcon?: ReactNode;
-  clearable?: boolean;
-  pill?: boolean;
+  helperText?: string;
+  leftIcon?: ReactNode | keyof typeof Ionicons.glyphMap;
+  rightIcon?: ReactNode | keyof typeof Ionicons.glyphMap;
   onClear?: () => void;
   containerStyle?: StyleProp<ViewStyle>;
 }
 
-export function Input({
-  label,
-  error,
-  leftIcon,
-  rightIcon,
-  clearable,
-  pill = false,
-  onClear,
-  containerStyle,
-  style,
-  value,
-  ...rest
-}: Props) {
+export const Input = forwardRef<TextInput, InputProps>(function Input(
+  { label, error, helperText, leftIcon, rightIcon, onClear, containerStyle, style, onFocus, onBlur, value, ...rest },
+  ref,
+) {
   const { colors } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
+  const [focused, setFocused] = useState(false);
 
-  const getBorderColor = () => {
-    if (error) return colors.danger;
-    if (isFocused) return colors.primary;
-    return colors.border;
+  const borderColor = error
+    ? colors.danger
+    : focused
+      ? colors.primary
+      : colors.border;
+
+  const backgroundColor = focused ? colors.surface : colors.inputBackground;
+
+  const renderIcon = (icon: ReactNode | keyof typeof Ionicons.glyphMap | undefined) => {
+    if (!icon) return null;
+    if (typeof icon === 'string') {
+      return (
+        <Ionicons
+          name={icon as keyof typeof Ionicons.glyphMap}
+          size={18}
+          color={focused ? colors.primary : colors.textMuted}
+        />
+      );
+    }
+    return icon;
   };
 
   return (
-    <View style={[styles.wrap, containerStyle]}>
+    <View style={[styles.container, containerStyle]}>
       {label ? (
-        <Text style={[typography.caption, { color: colors.textMuted }]}>{label}</Text>
+        <AppText variant="label" style={[styles.label, { color: colors.textSecondary }]}>
+          {label}
+        </AppText>
       ) : null}
       <View
         style={[
-          styles.inputContainer,
+          styles.inputWrapper,
           {
-            backgroundColor: colors.surface,
-            borderColor: getBorderColor(),
-            borderRadius: pill ? radius.pill : radius.input,
-            paddingHorizontal: pill ? spacing.lg : spacing.md,
+            backgroundColor,
+            borderColor,
+            borderWidth: focused || error ? 1.5 : 1,
           },
         ]}
       >
-
-        {leftIcon ? <View style={styles.leftIcon}>{leftIcon}</View> : null}
+        {leftIcon ? <View style={styles.iconLeft}>{renderIcon(leftIcon)}</View> : null}
         <TextInput
-          {...rest}
+          ref={ref as any}
           value={value}
+          placeholderTextColor={colors.placeholder}
           onFocus={(e) => {
-            setIsFocused(true);
-            rest.onFocus?.(e);
+            setFocused(true);
+            onFocus?.(e);
           }}
           onBlur={(e) => {
-            setIsFocused(false);
-            rest.onBlur?.(e);
+            setFocused(false);
+            onBlur?.(e);
           }}
-          placeholderTextColor={colors.textMuted}
           style={[
             styles.input,
-            typography.body,
             {
               color: colors.text,
             },
             style,
           ]}
+          {...rest}
         />
-        {onClear && value ? (
-          <Pressable accessibilityRole="button" onPress={onClear} style={styles.clearBtn}>
-            <Text style={{ color: colors.textMuted, fontSize: 16 }}>✕</Text>
+        {onClear && value && String(value).length > 0 ? (
+          <Pressable
+            onPress={onClear}
+            hitSlop={10}
+            style={styles.iconRight}
+            accessibilityRole="button"
+            accessibilityLabel="Clear input"
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
           </Pressable>
         ) : rightIcon ? (
-          <View style={styles.rightIcon}>{rightIcon}</View>
+          <View style={styles.iconRight}>{renderIcon(rightIcon)}</View>
         ) : null}
       </View>
       {error ? (
-        <Text style={[typography.caption, { color: colors.danger }]}>{error}</Text>
+        <View style={styles.feedbackRow}>
+          <Ionicons name="alert-circle" size={14} color={colors.danger} />
+          <AppText variant="error" style={styles.error}>
+            {error}
+          </AppText>
+        </View>
+      ) : helperText ? (
+        <AppText variant="caption" style={{ color: colors.textMuted }}>
+          {helperText}
+        </AppText>
       ) : null}
     </View>
+  );
+});
+
+export const InputField = Input;
+
+export interface SearchInputProps extends Omit<InputProps, 'leftIcon'> {
+  onClear?: () => void;
+}
+
+export function SearchInput({ value, onClear, ...rest }: SearchInputProps) {
+  const { colors } = useTheme();
+  return (
+    <Input
+      value={value}
+      leftIcon={<Ionicons name="search-outline" size={19} color={colors.textMuted} />}
+      onClear={onClear}
+      returnKeyType="search"
+      autoCapitalize="none"
+      autoCorrect={false}
+      {...rest}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    gap: spacing.xs,
+  container: {
+    gap: spacing.xs + 2,
   },
-  inputContainer: {
-    height: 52,
-    borderRadius: radius.input,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
+  label: {
+    marginLeft: 2,
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 50,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+  },
+  iconLeft: {
+    marginRight: spacing.sm,
+  },
+  iconRight: {
+    marginLeft: spacing.sm,
   },
   input: {
     flex: 1,
-    height: '100%',
-    paddingVertical: 0,
+    ...typography.body,
+    paddingVertical: spacing.sm + 2,
   },
-  leftIcon: {
-    marginRight: spacing.sm,
+  feedbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
-  rightIcon: {
-    marginLeft: spacing.sm,
-  },
-  clearBtn: {
-    padding: spacing.xs,
+  error: {
+    flex: 1,
   },
 });

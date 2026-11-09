@@ -1,89 +1,111 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View } from 'react-native';
+import { AppText } from '../components/AppText';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius, spacing, typography } from './tokens';
+import { radius, spacing } from './tokens';
 
-interface Props {
-  currentStep: number;
-  totalSteps: number;
+export interface StepperProps {
   steps: string[];
+  currentStep: number; // 0-based index
 }
 
-export function Stepper({ currentStep, totalSteps, steps }: Props) {
+export function Stepper({ steps, currentStep }: StepperProps) {
   const { colors } = useTheme();
 
   return (
     <View style={styles.container}>
-      <Text style={[typography.caption, { color: colors.textMuted, fontWeight: '700' }]}>
-        Step {currentStep} of {totalSteps}
-      </Text>
+      {steps.map((step, index) => {
+        const isActive = index === currentStep;
+        const isCompleted = index < currentStep;
 
-      {/* Progress Bars Row */}
-      <View style={styles.barsRow}>
-        {steps.map((_, index) => {
-          const isCompletedOrActive = index + 1 <= currentStep;
-          return (
-            <View
-              key={index}
-              style={[
-                styles.bar,
-                {
-                  backgroundColor: isCompletedOrActive ? colors.primary : colors.border,
-                },
-              ]}
-            />
-          );
-        })}
-      </View>
-
-      {/* Step Labels Row */}
-      <View style={styles.labelsRow}>
-        {steps.map((label, index) => {
-          const isActive = index + 1 === currentStep;
-          return (
-            <Text
-              key={index}
-              style={[
-                typography.caption,
-                styles.label,
-                {
-                  color: isActive ? colors.text : colors.textMuted,
-                  fontWeight: isActive ? '700' : '500',
-                },
-              ]}
+        return (
+          <View key={step} style={styles.stepWrapper}>
+            <View style={styles.stepRow}>
+              <View
+                style={[
+                  styles.circle,
+                  {
+                    backgroundColor:
+                      isActive || isCompleted ? colors.primary : colors.inputBackground,
+                    borderColor:
+                      isActive || isCompleted ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                {isCompleted ? (
+                  <Ionicons name="checkmark" size={14} color={colors.onPrimary} />
+                ) : (
+                  <AppText
+                    variant="label"
+                    style={{
+                      color: isActive ? colors.onPrimary : colors.textMuted,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {index + 1}
+                  </AppText>
+                )}
+              </View>
+              {index < steps.length - 1 ? (
+                <View
+                  style={[
+                    styles.line,
+                    {
+                      backgroundColor: isCompleted ? colors.primary : colors.border,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+            <AppText
+              variant="label"
+              style={{
+                color: isActive ? colors.primary : isCompleted ? colors.text : colors.textMuted,
+                fontWeight: isActive ? '700' : '500',
+                marginTop: 4,
+              }}
               numberOfLines={1}
             >
-              {label}
-            </Text>
-          );
-        })}
-      </View>
+              {step}
+            </AppText>
+          </View>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    gap: spacing.xs,
-    marginVertical: spacing.sm,
-  },
-  barsRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: 2,
-  },
-  bar: {
-    flex: 1,
-    height: 6,
-    borderRadius: radius.pill,
-  },
-  labelsRow: {
-    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginTop: 2,
+    paddingVertical: spacing.xs,
   },
-  label: {
+  stepWrapper: {
     flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
+    alignItems: 'center',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  circle: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  line: {
+    position: 'absolute',
+    left: '50%',
+    right: '-50%',
+    height: 2,
+    zIndex: 1,
   },
 });

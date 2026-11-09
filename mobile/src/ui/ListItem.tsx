@@ -1,17 +1,17 @@
 import type { ReactNode } from 'react';
 import {
   Pressable,
-  StyleProp,
+  type StyleProp,
   StyleSheet,
   Text,
   View,
-  ViewStyle,
+  type ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { lightImpact } from './haptics';
 import { spacing, typography } from './tokens';
 
-interface Props {
+export interface ListItemProps {
   title: string;
   subtitle?: string | null;
   leading?: ReactNode;
@@ -33,7 +33,7 @@ export function ListItem({
   onPress,
   showChevron,
   style,
-}: Props) {
+}: ListItemProps) {
   const { colors } = useTheme();
 
   const handlePress = () => {
@@ -62,7 +62,6 @@ export function ListItem({
       ) : null}
     </View>
   );
-
 
   if (onPress) {
     return (

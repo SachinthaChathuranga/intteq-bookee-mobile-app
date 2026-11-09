@@ -1,30 +1,66 @@
-import { Text, type TextProps } from 'react-native';
+import { Text, type TextProps, type TextStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import type { ColorTokens } from '../theme/colors';
+import { typography } from '../ui/tokens';
 
-type Variant = 'title' | 'heading' | 'body' | 'bodyBold' | 'caption' | 'error';
+export type TextVariant =
+  | 'display'
+  | 'largeHeading'
+  | 'heading1'
+  | 'heading2'
+  | 'heading3'
+  | 'title'
+  | 'heading'
+  | 'bodyLarge'
+  | 'body'
+  | 'bodyBold'
+  | 'bodySmall'
+  | 'caption'
+  | 'label'
+  | 'button'
+  | 'numeric'
+  | 'error';
 
-const variantStyle = {
-  title: { fontSize: 28, fontWeight: '700', lineHeight: 40 },
-  heading: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
-  body: { fontSize: 16, lineHeight: 26 },
-  bodyBold: { fontSize: 16, fontWeight: '600', lineHeight: 26 },
-  caption: { fontSize: 14, lineHeight: 22 },
-  error: { fontSize: 14, lineHeight: 22 },
-} as const;
+export type SemanticTextColor =
+  | 'default'
+  | 'secondary'
+  | 'muted'
+  | 'primary'
+  | 'onPrimary'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info';
 
-const variantColor: Record<Variant, keyof ColorTokens> = {
-  title: 'text',
-  heading: 'text',
-  body: 'text',
-  bodyBold: 'text',
-  caption: 'textMuted',
-  error: 'danger',
-};
+interface Props extends TextProps {
+  variant?: TextVariant;
+  tone?: SemanticTextColor;
+}
 
-
-// Generous line heights so Sinhala/Tamil glyphs are not clipped.
-export function AppText({ variant = 'body', style, ...rest }: TextProps & { variant?: Variant }) {
+export function AppText({ variant = 'body', tone, style, ...rest }: Props) {
   const { colors } = useTheme();
-  return <Text {...rest} style={[variantStyle[variant], { color: colors[variantColor[variant]] }, style]} />;
+
+  const baseStyle: TextStyle =
+    variant === 'error' ? typography.caption : typography[variant] ?? typography.body;
+
+  let resolvedColor = colors.text;
+  if (tone) {
+    const toneMap: Record<SemanticTextColor, string> = {
+      default: colors.text,
+      secondary: colors.textSecondary,
+      muted: colors.textMuted,
+      primary: colors.primary,
+      onPrimary: colors.onPrimary,
+      success: colors.success,
+      warning: colors.warning,
+      danger: colors.danger,
+      info: colors.info,
+    };
+    resolvedColor = toneMap[tone];
+  } else if (variant === 'caption' || variant === 'bodySmall' || variant === 'label') {
+    resolvedColor = colors.textMuted;
+  } else if (variant === 'error') {
+    resolvedColor = colors.danger;
+  }
+
+  return <Text style={[baseStyle, { color: resolvedColor }, style]} {...rest} />;
 }

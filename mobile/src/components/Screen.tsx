@@ -1,27 +1,7 @@
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../theme/ThemeProvider';
+import { Screen as UiScreen, type ScreenProps } from '../ui/Screen';
 
-export function Screen({ children }: { children: ReactNode }) {
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
-        ]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
-    </View>
-  );
+export function Screen({ scrollable = true, scroll, ...rest }: ScreenProps) {
+  return <UiScreen scrollable={scroll ?? scrollable} {...rest} />;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 24, gap: 16 },
-});
+export type { ScreenProps };

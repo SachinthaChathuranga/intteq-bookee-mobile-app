@@ -1,26 +1,45 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { cancelInvite, fetchBarbersAndInvites, type BarberDetail, type InviteDetail } from '../../api/owner';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  cancelInvite,
+  fetchBarbersAndInvites,
+  type InviteDetail,
+} from '../../api/owner';
 import { AppText } from '../../components/AppText';
-import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Screen } from '../../components/Screen';
 import { CommissionBadge } from '../../features/salon/CommissionBadge';
 import { useT } from '../../i18n';
-import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import type { OwnerStackParamList } from '../../navigation/types';
+import { WorkspaceHeader } from '../../navigation/workspaces/WorkspaceHeader';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import {
+  Avatar,
+  Button,
+  Card,
+  ConfirmationDialog,
+  EmptyState,
+  Screen,
+  SectionHeader,
+  SkeletonCard,
+  StatusBadge,
+  haptics,
+  radius,
+  spacing,
+  useToast,
+} from '../../ui';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'BarberList'>;
 
 export function BarberListScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const activeBranchId = useWorkspaceStore((s) => s.activeBranchId);
+
+  const [revokingInvite, setRevokingInvite] = useState<InviteDetail | null>(null);
 
   const barbersQuery = useQuery({
     queryKey: ['barbers', activeBranchId],
@@ -31,61 +50,84 @@ export function BarberListScreen({ navigation }: Props) {
   const cancelMutation = useMutation({
     mutationFn: (inviteId: string) => cancelInvite(activeBranchId!, inviteId),
     onSuccess: () => {
+      haptics.medium();
+      setRevokingInvite(null);
       queryClient.invalidateQueries({ queryKey: ['barbers', activeBranchId] });
     },
     onError: () => {
-      Alert.alert('Error', t('common.error.generic'));
+      setRevokingInvite(null);
+      showToast({ title: t('common.error.generic'), tone: 'error' });
     },
   });
 
   const barbers = barbersQuery.data?.barbers ?? [];
-  const pendingInvites = (barbersQuery.data?.invites ?? []).filter((i) => i.status === 'PENDING');
+  const pendingInvites = (barbersQuery.data?.invites ?? []).filter(
+    (i) => i.status === 'PENDING',
+  );
 
   return (
-    <View style={{ flex: 1 }}>
-      <WorkspaceHeader title={t('barber.title')} onBack={() => navigation.goBack()} />
-      <Screen>
+    <View style={styles.flex}>
+      <WorkspaceHeader
+        title={t('barber.title')}
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+      />
+      <Screen scroll={false}>
         {!activeBranchId ? (
-          <Card>
-            <AppText variant="caption" style={{ textAlign: 'center' }}>
-              {t('owner.noBranches')}
-            </AppText>
-            <View style={{ marginTop: 12 }}>
-              <Button
-                label={t('owner.createBranch')}
-                onPress={() => navigation.navigate('BranchList')}
-              />
-            </View>
-          </Card>
+          <EmptyState
+            icon="business-outline"
+            title={t('owner.noBranches')}
+            actionLabel={t('owner.createBranch')}
+            onActionPress={() => navigation.navigate('BranchList')}
+          />
         ) : (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={barbersQuery.isRefetching}
+                onRefresh={() => {
+                  void barbersQuery.refetch();
+                }}
+                tintColor={colors.primary}
+              />
+            }
+          >
             {/* Active Barbers */}
             <View style={styles.section}>
-              <AppText variant="body" style={{ fontWeight: '700' }}>
-                {t('barber.activeBarbers')}
-              </AppText>
+              <SectionHeader title={`${t('barber.activeBarbers')} (${barbers.length})`} />
 
-              {barbers.length === 0 ? (
-                <Card>
-                  <AppText variant="caption">{t('barber.noBarbers')}</AppText>
-                </Card>
+              {barbersQuery.isLoading ? (
+                <SkeletonCard />
+              ) : barbers.length === 0 ? (
+                <EmptyState compact icon="people-outline" title={t('barber.noBarbers')} />
               ) : (
                 barbers.map((barber) => (
-                  <Card key={barber.id}>
+                  <Card key={barber.id} variant="elevated" padding="lg">
                     <View style={styles.cardRow}>
+                      <Avatar
+                        name={barber.name || barber.phone}
+                        size="md"
+                        status={barber.is_active ? 'online' : 'offline'}
+                      />
                       <View style={{ flex: 1, gap: 4 }}>
-                        <AppText variant="body" style={{ fontWeight: '700' }}>
-                          {barber.name}
-                        </AppText>
+                        <AppText variant="heading3">{barber.name}</AppText>
                         <AppText variant="caption">{barber.phone}</AppText>
-                        <CommissionBadge
-                          type={barber.commission_type}
-                          value={barber.commission_value}
-                        />
+                        <View style={{ marginTop: 2 }}>
+                          <CommissionBadge
+                            type={barber.commission_type}
+                            value={barber.commission_value}
+                          />
+                        </View>
                       </View>
-                      <Badge
-                        label={barber.is_active ? t('barber.statusActive') : t('barber.statusInactive')}
-                        variant={barber.is_active ? 'success' : 'warning'}
+                      <StatusBadge
+                        label={
+                          barber.is_active
+                            ? t('barber.statusActive')
+                            : t('barber.statusInactive')
+                        }
+                        tone={barber.is_active ? 'success' : 'warning'}
+                        size="sm"
                       />
                     </View>
                   </Card>
@@ -95,92 +137,110 @@ export function BarberListScreen({ navigation }: Props) {
 
             {/* Pending Invites */}
             <View style={styles.section}>
-              <AppText variant="body" style={{ fontWeight: '700' }}>
-                {t('barber.invitesPending')}
-              </AppText>
+              <SectionHeader
+                title={`${t('barber.invitesPending')} (${pendingInvites.length})`}
+              />
 
               {pendingInvites.length === 0 ? (
-                <Card>
-                  <AppText variant="caption">{t('barber.noInvites')}</AppText>
-                </Card>
+                <EmptyState compact icon="mail-outline" title={t('barber.noInvites')} />
               ) : (
                 pendingInvites.map((invite) => (
-                  <Card key={invite.id}>
+                  <Card key={invite.id} variant="outlined" padding="lg">
                     <View style={styles.cardRow}>
-                      <View style={{ flex: 1, gap: 4 }}>
-                        <AppText variant="body" style={{ fontWeight: '700' }}>
-                          {invite.phone}
-                        </AppText>
-                        <AppText
-                          variant="body"
-                          style={{
-                            fontWeight: '800',
-                            letterSpacing: 2,
-                            color: colors.primary,
-                          }}
+                      <View style={{ flex: 1, gap: 6 }}>
+                        <AppText variant="bodyBold">{invite.phone}</AppText>
+                        <View
+                          style={[
+                            styles.codePill,
+                            {
+                              backgroundColor: colors.primaryLight,
+                              borderColor: colors.primaryBorder,
+                            },
+                          ]}
                         >
-                          {invite.code}
-                        </AppText>
+                          <AppText
+                            variant="heading3"
+                            style={{
+                              letterSpacing: 3,
+                              color: colors.primary,
+                              fontWeight: '800',
+                            }}
+                          >
+                            {invite.code}
+                          </AppText>
+                        </View>
                         <CommissionBadge
                           type={invite.commission_type}
                           value={invite.commission_value}
                         />
                       </View>
-                      <TouchableOpacity
-                        onPress={() => cancelMutation.mutate(invite.id)}
-                        style={[
-                          styles.cancelBtn,
-                          { borderColor: colors.danger },
-                        ]}
-                      >
-                        <AppText
-                          variant="caption"
-                          style={{ color: colors.danger, fontWeight: '600' }}
-                        >
-                          {t('barber.cancelInvite')}
-                        </AppText>
-                      </TouchableOpacity>
+                      <Button
+                        label={t('barber.cancelInvite')}
+                        variant="danger"
+                        size="sm"
+                        fullWidth={false}
+                        onPress={() => setRevokingInvite(invite)}
+                      />
                     </View>
                   </Card>
                 ))
               )}
             </View>
 
-            {/* Invite Button */}
-            <View style={{ marginTop: 8 }}>
-              <Button
-                label={t('barber.invite')}
-                onPress={() =>
-                  navigation.navigate('InviteBarber', {
-                    branchId: activeBranchId,
-                  })
-                }
-              />
-            </View>
+            <Button
+              label={t('barber.invite')}
+              leftIcon="person-add-outline"
+              onPress={() =>
+                navigation.navigate('InviteBarber', {
+                  branchId: activeBranchId,
+                })
+              }
+            />
           </ScrollView>
         )}
+
+        <ConfirmationDialog
+          visible={Boolean(revokingInvite)}
+          title={t('barber.cancelInvite')}
+          description={revokingInvite?.phone}
+          confirmLabel={t('barber.cancelInvite')}
+          cancelLabel={t('common.cancel')}
+          tone="danger"
+          icon="close-circle-outline"
+          loading={cancelMutation.isPending}
+          onConfirm={() => {
+            if (revokingInvite) {
+              cancelMutation.mutate(revokingInvite.id);
+            }
+          }}
+          onCancel={() => setRevokingInvite(null)}
+        />
       </Screen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   scroll: {
-    gap: 18,
-    paddingBottom: 40,
+    gap: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   section: {
-    gap: 10,
+    gap: spacing.md,
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.md,
   },
-  cancelBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+  codePill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
     borderWidth: 1,
   },
 });

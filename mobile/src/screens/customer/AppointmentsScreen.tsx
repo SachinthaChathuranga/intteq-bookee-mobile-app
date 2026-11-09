@@ -1,544 +1,478 @@
-import { Ionicons } from '@expo/vector-icons';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {
   cancelCustomerAppointment,
   fetchBranchAvailability,
   fetchCustomerAppointments,
   rescheduleCustomerAppointment,
   type CustomerBookedAppointment,
-  type SlotAvailability,
 } from '../../api/customer';
 import { AppText } from '../../components/AppText';
 import { useT } from '../../i18n';
+import type { CustomerTabParamList } from '../../navigation/types';
 import { useTheme } from '../../theme/ThemeProvider';
 import {
-  Avatar,
-  Badge,
+  AppointmentCard,
   BottomSheet,
   Button,
-  Card,
+  ConfirmationDialog,
   EmptyState,
   Screen,
-  Skeleton,
+  ScreenHeader,
+  SegmentedControl,
+  SkeletonCard,
+  haptics,
   radius,
   spacing,
+  useToast,
+  type BadgeTone,
 } from '../../ui';
-import { haptics } from '../../ui/haptics';
-import { formatCurrency } from '../../utils/format';
 
-function getNext7DaysColombo() {
-  const days: { dateStr: string; weekday: string; dayNum: string; isToday: boolean; isTomorrow: boolean }[] = [];
+type Props = BottomTabScreenProps<CustomerTabParamList, 'AppointmentsTab'>;
+
+type TabType = 'upcoming' | 'past';
+
+function getNext14Days(): { dateStr: string; dayName: string; dayNum: string; isToday: boolean }[] {
+  const days: { dateStr: string; dayName: string; dayNum: string; isToday: boolean }[] = [];
   const now = new Date();
-
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Colombo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d);
-
-    const weekday = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Colombo',
-      weekday: 'short',
-    }).format(d);
-
-    const dayNum = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Colombo',
-      day: 'numeric',
-    }).format(d);
-
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
     days.push({
       dateStr,
-      weekday,
-      dayNum,
+      dayName,
+      dayNum: String(d.getDate()),
       isToday: i === 0,
-      isTomorrow: i === 1,
     });
   }
   return days;
 }
 
-export function AppointmentsScreen() {
+export function AppointmentsScreen({ navigation }: Props) {
   const t = useT();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
 
-  const sevenDays = useMemo(() => getNext7DaysColombo(), []);
-  const [reschedulingAppt, setReschedulingAppt] = useState<CustomerBookedAppointment | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(sevenDays[0]?.dateStr ?? '');
-  const [selectedSlot, setSelectedSlot] = useState<SlotAvailability | null>(null);
-  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('upcoming');
+  const [cancellingAppt, setCancellingAppt] = useState<CustomerBookedAppointment | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<CustomerBookedAppointment | null>(null);
+  const days = useMemo(() => getNext14Days(), []);
+  const [selectedDate, setSelectedDate] = useState<string>(days[0].dateStr);
+  const [selectedSlot, setSelectedSlot] = useState<{ time: string; start_at: string } | null>(null);
 
   const appointmentsQuery = useQuery({
     queryKey: ['customer-appointments'],
-    queryFn: () => fetchCustomerAppointments(),
+    queryFn: fetchCustomerAppointments,
   });
 
-  const appointments = appointmentsQuery.data?.appointments ?? [];
+  const targetServiceIds = useMemo(() => {
+    if (!rescheduleTarget) return [];
+    return rescheduleTarget.services
+      .map((s) => s.service_id || s.id || '')
+      .filter(Boolean);
+  }, [rescheduleTarget]);
 
-  // Service IDs of appointment being rescheduled
-  const reschedulingServiceIds = useMemo(() => {
-    if (!reschedulingAppt) return [];
-    return reschedulingAppt.services
-      .map((s) => s.id ?? s.service_id)
-      .filter((id): id is string => Boolean(id));
-  }, [reschedulingAppt]);
-
-  // Branch availability query for reschedule
   const availabilityQuery = useQuery({
     queryKey: [
-      'branch-availability',
-      reschedulingAppt?.branch_id,
+      'reschedule-availability',
+      rescheduleTarget?.branch_id,
       selectedDate,
-      reschedulingServiceIds,
-      reschedulingAppt?.barber_id,
+      targetServiceIds.join(','),
+      rescheduleTarget?.barber_id,
     ],
     queryFn: () =>
       fetchBranchAvailability(
-        reschedulingAppt!.branch_id,
+        rescheduleTarget!.branch_id,
         selectedDate,
-        reschedulingServiceIds,
-        reschedulingAppt?.barber_id,
+        targetServiceIds,
+        rescheduleTarget!.barber_id,
       ),
-    enabled: !!reschedulingAppt && !!selectedDate,
+    enabled: Boolean(rescheduleTarget && targetServiceIds.length > 0),
   });
 
-  // Cancel Mutation
   const cancelMutation = useMutation({
     mutationFn: (appointmentId: string) => cancelCustomerAppointment(appointmentId),
     onSuccess: () => {
-      haptics.success();
+      haptics.medium();
+      setCancellingAppt(null);
       queryClient.invalidateQueries({ queryKey: ['customer-appointments'] });
-      Alert.alert(t('common.success'), t('appointments.cancelSuccess'));
+      showToast({ title: t('appointments.cancelSuccess'), tone: 'success' });
     },
     onError: (err: any) => {
-      haptics.medium();
-      Alert.alert(t('common.error.generic'), err?.message || t('common.error.generic'));
+      setCancellingAppt(null);
+      showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
     },
   });
 
-  // Reschedule Mutation
   const rescheduleMutation = useMutation({
-    mutationFn: ({ appointmentId, startAt }: { appointmentId: string; startAt: string }) =>
-      rescheduleCustomerAppointment(appointmentId, startAt),
+    mutationFn: () => {
+      if (!rescheduleTarget || !selectedSlot) throw new Error('Missing selection');
+      return rescheduleCustomerAppointment(rescheduleTarget.id, selectedSlot.start_at);
+    },
     onSuccess: () => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: ['customer-appointments'] });
-      setReschedulingAppt(null);
+      setRescheduleTarget(null);
       setSelectedSlot(null);
-      setRescheduleError(null);
-      Alert.alert(t('common.success'), t('appointments.rescheduleSuccess'));
+      queryClient.invalidateQueries({ queryKey: ['customer-appointments'] });
+      showToast({ title: t('appointments.rescheduleSuccess'), tone: 'success' });
     },
     onError: (err: any) => {
-      haptics.medium();
-      if (err?.code === 'SLOT_ALREADY_BOOKED' || err?.message?.includes('SLOT_ALREADY_BOOKED')) {
-        setRescheduleError(t('appointments.slotConflict'));
-        availabilityQuery.refetch();
+      if (err?.status === 409) {
+        showToast({ title: t('appointments.slotConflict'), tone: 'error' });
+        setSelectedSlot(null);
+        void availabilityQuery.refetch();
       } else {
-        setRescheduleError(err?.message || t('common.error.generic'));
+        showToast({ title: err?.message || t('common.error.generic'), tone: 'error' });
       }
     },
   });
 
-  const handleOpenReschedule = (apt: CustomerBookedAppointment) => {
+  const allAppointments = appointmentsQuery.data?.appointments ?? [];
+
+  const { upcomingList, pastList } = useMemo(() => {
+    const upcoming: CustomerBookedAppointment[] = [];
+    const past: CustomerBookedAppointment[] = [];
+    for (const appt of allAppointments) {
+      if (appt.status === 'BOOKED') {
+        upcoming.push(appt);
+      } else {
+        past.push(appt);
+      }
+    }
+    return { upcomingList: upcoming, pastList: past };
+  }, [allAppointments]);
+
+  const displayedList = activeTab === 'upcoming' ? upcomingList : pastList;
+
+  const openReschedule = (item: CustomerBookedAppointment) => {
     haptics.light();
-    setReschedulingAppt(apt);
-    setSelectedDate(sevenDays[0]?.dateStr ?? '');
+    setRescheduleTarget(item);
+    setSelectedDate(days[0].dateStr);
     setSelectedSlot(null);
-    setRescheduleError(null);
   };
 
-  const handleCancelPress = (apt: CustomerBookedAppointment) => {
-    haptics.medium();
-    Alert.alert(
-      t('appointments.cancelConfirmTitle'),
-      t('appointments.cancelConfirmMessage'),
-      [
-        {
-          text: t('appointments.keepBtn'),
-          style: 'cancel',
-        },
-        {
-          text: t('appointments.cancelConfirmBtn'),
-          style: 'destructive',
-          onPress: () => cancelMutation.mutate(apt.id),
-        },
-      ],
+  const renderItem = ({ item }: { item: CustomerBookedAppointment }) => {
+    const startDate = new Date(item.start_at);
+    const dateStr = startDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+    const timeStr = startDate.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const isBooked = item.status === 'BOOKED';
+    const isCancelled = item.status === 'CANCELLED';
+
+    const statusTone: BadgeTone = isBooked
+      ? 'primary'
+      : isCancelled
+        ? 'danger'
+        : 'success';
+
+    return (
+      <AppointmentCard
+        title={item.business_name}
+        subtitle={item.branch_name}
+        dateLabel={dateStr}
+        timeLabel={timeStr}
+        personLabel={item.barber_name || t('term.barber')}
+        personAvatar={item.barber_avatar}
+        status={item.status}
+        statusTone={statusTone}
+        services={item.services}
+        totalPrice={item.total_price}
+        totalDurationLabel={t('booking.duration', { mins: item.total_duration_minutes })}
+        actions={
+          isBooked ? (
+            <View style={styles.actionsRow}>
+              <View style={styles.actionItem}>
+                <Button
+                  label={t('appointments.reschedule')}
+                  variant="secondary"
+                  size="sm"
+                  leftIcon="calendar-outline"
+                  onPress={() => openReschedule(item)}
+                />
+              </View>
+              <View style={styles.actionItem}>
+                <Button
+                  label={t('appointments.cancel')}
+                  variant="danger"
+                  size="sm"
+                  leftIcon="close-circle-outline"
+                  onPress={() => setCancellingAppt(item)}
+                />
+              </View>
+            </View>
+          ) : undefined
+        }
+      />
     );
   };
 
+  const avail = availabilityQuery.data;
+
   return (
-    <Screen
-      scrollable
-      refreshing={appointmentsQuery.isRefetching}
-      onRefresh={() => appointmentsQuery.refetch()}
-      contentContainerStyle={styles.container}
-    >
-      <View style={styles.header}>
-        <AppText variant="title" style={styles.title}>
-          {t('appointments.title')}
-        </AppText>
-      </View>
+    <Screen scroll={false}>
+      <View style={styles.container}>
+        <ScreenHeader title={t('appointments.title')} />
 
-      {appointmentsQuery.isLoading ? (
-        <View style={{ gap: spacing.md }}>
-          <Skeleton width="100%" height={140} borderRadius={radius.card} />
-          <Skeleton width="100%" height={140} borderRadius={radius.card} />
-        </View>
-      ) : appointments.length === 0 ? (
-        <EmptyState
-          icon={<Ionicons name="calendar-outline" size={36} color={colors.textMuted} />}
-          title={t('appointments.title')}
-          description={t('appointments.placeholder')}
+        <SegmentedControl
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            {
+              key: 'upcoming',
+              label: t('appointments.upcomingTab'),
+              count: upcomingList.length,
+            },
+            {
+              key: 'past',
+              label: t('appointments.pastTab'),
+              count: pastList.length,
+            },
+          ]}
         />
-      ) : (
-        <View style={{ gap: spacing.md }}>
-          {appointments.map((apt) => {
-            const startDate = new Date(apt.start_at);
-            const isUpcoming =
-              (apt.status === 'CONFIRMED' || apt.status === 'RESCHEDULED') &&
-              new Date(apt.end_at).getTime() > Date.now();
 
-            const dateStr = startDate.toLocaleDateString([], {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-            });
-            const timeStr = startDate.toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
+        <FlatList
+          data={displayedList}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={appointmentsQuery.isRefetching}
+              onRefresh={() => {
+                void appointmentsQuery.refetch();
+              }}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            appointmentsQuery.isLoading ? (
+              <View style={styles.skeletonWrap}>
+                <SkeletonCard />
+                <SkeletonCard />
+              </View>
+            ) : activeTab === 'upcoming' ? (
+              <EmptyState
+                icon="calendar-outline"
+                title={t('appointments.emptyUpcomingTitle')}
+                description={t('appointments.emptyUpcomingDesc')}
+                actionLabel={t('appointments.exploreCta')}
+                onActionPress={() => navigation.navigate('ExploreTab')}
+              />
+            ) : (
+              <EmptyState
+                icon="time-outline"
+                title={t('appointments.emptyPastTitle')}
+                description={t('appointments.emptyPastDesc')}
+              />
+            )
+          }
+        />
 
-            return (
-              <Card key={apt.id} style={styles.appointmentCard}>
-                <View style={styles.topRow}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText variant="heading" style={{ fontSize: 17 }}>
-                      {apt.business_name}
-                    </AppText>
-                    <View style={styles.branchRow}>
-                      <Ionicons name="location-sharp" size={14} color={colors.primary} />
-                      <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-                        {apt.branch_name}
-                      </AppText>
-                    </View>
-                  </View>
+        {/* Cancel Appointment Confirmation Dialog */}
+        <ConfirmationDialog
+          visible={Boolean(cancellingAppt)}
+          title={t('appointments.cancelConfirmTitle')}
+          description={t('appointments.cancelConfirmMessage')}
+          confirmLabel={t('appointments.cancelConfirmBtn')}
+          cancelLabel={t('appointments.keepBtn')}
+          tone="danger"
+          icon="calendar-clear-outline"
+          loading={cancelMutation.isPending}
+          onConfirm={() => {
+            if (cancellingAppt) {
+              cancelMutation.mutate(cancellingAppt.id);
+            }
+          }}
+          onCancel={() => setCancellingAppt(null)}
+        />
 
-                  <Badge
-                    label={apt.status}
-                    variant={
-                      apt.status === 'CONFIRMED' || apt.status === 'RESCHEDULED'
-                        ? 'primary'
-                        : apt.status === 'COMPLETED'
-                        ? 'success'
-                        : 'neutral'
-                    }
-                  />
-                </View>
-
-                {/* Barber and Date */}
-                <View style={[styles.barberRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <Avatar name={apt.barber_name} shape="square" size="sm" />
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="bodyBold" style={{ fontSize: 14 }}>
-                      {apt.barber_name}
-                    </AppText>
-                    <AppText variant="caption" style={{ color: colors.textMuted }}>
-                      {dateStr} • {timeStr}
-                    </AppText>
-                  </View>
-
-                  <AppText variant="heading" style={{ color: colors.primary, fontSize: 16 }}>
-                    {formatCurrency(apt.total_price)}
-                  </AppText>
-                </View>
-
-                {/* Services */}
-                {apt.services.length > 0 && (
-                  <View style={styles.servicesRow}>
-                    <AppText variant="caption" style={{ color: colors.textMuted }}>
-                      {apt.services.map((s) => s.name).join(', ')} ({apt.total_duration_minutes} mins)
-                    </AppText>
-                  </View>
-                )}
-
-                {/* Actions for upcoming appointments */}
-                {isUpcoming && (
-                  <View style={styles.actionsRow}>
-                    <Button
-                      label={t('appointments.cancel')}
-                      variant="danger"
-                      size="small"
-                      loading={cancelMutation.isPending && cancelMutation.variables === apt.id}
-                      onPress={() => handleCancelPress(apt)}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      label={t('appointments.reschedule')}
-                      variant="secondary"
-                      size="small"
-                      onPress={() => handleOpenReschedule(apt)}
-                      style={{ flex: 1 }}
-                    />
-                  </View>
-                )}
-              </Card>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Reschedule Bottom Sheet */}
-      <BottomSheet
-        visible={!!reschedulingAppt}
-        onClose={() => {
-          setReschedulingAppt(null);
-          setSelectedSlot(null);
-          setRescheduleError(null);
-        }}
-        title={t('appointments.rescheduleTitle')}
-      >
-        <View style={styles.sheetContent}>
-          {reschedulingAppt && (
-            <>
-              {/* Conflict/General Error */}
-              {rescheduleError && (
-                <View style={[styles.errorBox, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
-                  <Ionicons name="alert-circle" size={18} color={colors.danger} />
-                  <AppText variant="caption" style={{ color: colors.danger, flex: 1, fontWeight: '600' }}>
-                    {rescheduleError}
-                  </AppText>
-                </View>
-              )}
-
-              {/* Date selection strip */}
-              <AppText variant="bodyBold" style={{ fontSize: 15 }}>
-                {t('appointments.selectDate')}
-              </AppText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.dateChipsRow}
-              >
-                {sevenDays.map((day) => {
-                  const isSelected = selectedDate === day.dateStr;
-                  let dayLabel = day.weekday;
-                  if (day.isToday) dayLabel = t('booking.today');
-                  else if (day.isTomorrow) dayLabel = t('booking.tomorrow');
-
-                  return (
-                    <Pressable
-                      key={day.dateStr}
-                      onPress={() => {
-                        haptics.selection();
-                        setSelectedDate(day.dateStr);
-                        setSelectedSlot(null);
-                        setRescheduleError(null);
-                      }}
-                      style={[
-                        styles.dateChip,
-                        {
-                          backgroundColor: isSelected ? colors.primary : colors.surface,
-                          borderColor: isSelected ? colors.primary : colors.border,
-                        },
-                      ]}
+        {/* Reschedule Bottom Sheet */}
+        <BottomSheet
+          visible={Boolean(rescheduleTarget)}
+          onClose={() => setRescheduleTarget(null)}
+          title={t('appointments.rescheduleTitle')}
+          subtitle={
+            rescheduleTarget
+              ? `${rescheduleTarget.business_name} • ${rescheduleTarget.barber_name}`
+              : undefined
+          }
+          footer={
+            <View style={{ gap: spacing.sm }}>
+              <Button
+                label={t('appointments.confirmReschedule')}
+                disabled={!selectedSlot}
+                loading={rescheduleMutation.isPending}
+                onPress={() => rescheduleMutation.mutate()}
+              />
+              <Button
+                label={t('common.cancel')}
+                variant="ghost"
+                onPress={() => setRescheduleTarget(null)}
+              />
+            </View>
+          }
+        >
+          <View style={styles.sheetBody}>
+            <AppText variant="label" style={{ color: colors.textSecondary }}>
+              {t('appointments.selectDate')}
+            </AppText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateScroll}
+            >
+              {days.map((d) => {
+                const isSelected = d.dateStr === selectedDate;
+                return (
+                  <Pressable
+                    key={d.dateStr}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedDate(d.dateStr);
+                      setSelectedSlot(null);
+                    }}
+                    style={[
+                      styles.dateChip,
+                      {
+                        backgroundColor: isSelected ? colors.primary : colors.inputBackground,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="label"
+                      style={{ color: isSelected ? colors.onPrimary : colors.textMuted }}
                     >
-                      <AppText
-                        variant="caption"
-                        style={{
-                          color: isSelected ? colors.onPrimary : colors.textMuted,
-                          fontWeight: '600',
-                        }}
-                      >
-                        {dayLabel}
-                      </AppText>
-                      <AppText
-                        variant="heading"
-                        style={{
-                          color: isSelected ? colors.onPrimary : colors.text,
-                          fontSize: 16,
-                          marginTop: 2,
-                        }}
-                      >
-                        {day.dayNum}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                      {d.isToday ? t('booking.today') : d.dayName}
+                    </AppText>
+                    <AppText
+                      variant="heading3"
+                      style={{ color: isSelected ? colors.onPrimary : colors.text }}
+                    >
+                      {d.dayNum}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-              {/* Available Slots */}
-              <AppText variant="bodyBold" style={{ fontSize: 15, marginTop: spacing.sm }}>
-                {t('appointments.selectSlot')}
-              </AppText>
+            <AppText variant="label" style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+              {t('appointments.selectSlot')}
+            </AppText>
 
-              {availabilityQuery.isLoading ? (
-                <View style={styles.slotsGrid}>
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} width="30%" height={42} borderRadius={radius.input} />
-                  ))}
-                </View>
-              ) : !availabilityQuery.data?.slots || availabilityQuery.data.slots.length === 0 ? (
-                <EmptyState
-                  icon={<Ionicons name="time-outline" size={32} color={colors.textMuted} />}
-                  title={t('booking.noSlots')}
-                  description={t('booking.noSlots')}
-                />
-              ) : (
-                <View style={styles.slotsGrid}>
-                  {availabilityQuery.data.slots.map((slot) => {
-                    const isSelected = selectedSlot?.time === slot.time;
-                    const isAvailable = slot.available;
-
+            {availabilityQuery.isLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
+            ) : avail?.is_closed ? (
+              <EmptyState compact icon="lock-closed-outline" title={t('booking.closed')} />
+            ) : !avail?.slots || avail.slots.filter((s) => s.available).length === 0 ? (
+              <EmptyState compact icon="calendar-outline" title={t('booking.noSlots')} />
+            ) : (
+              <View style={styles.slotsGrid}>
+                {avail.slots
+                  .filter((s) => s.available)
+                  .map((slot) => {
+                    const isSelected = selectedSlot?.start_at === slot.start_at;
                     return (
                       <Pressable
-                        key={slot.time}
-                        disabled={!isAvailable}
+                        key={slot.start_at}
                         onPress={() => {
                           haptics.selection();
                           setSelectedSlot(slot);
-                          setRescheduleError(null);
                         }}
                         style={[
-                          styles.slotItem,
+                          styles.slotChip,
                           {
-                            backgroundColor: isSelected
-                              ? colors.primary
-                              : isAvailable
-                              ? colors.surface
-                              : colors.background,
-                            borderColor: isSelected
-                              ? colors.primary
-                              : colors.border,
-                            opacity: isAvailable ? 1 : 0.45,
+                            backgroundColor: isSelected ? colors.primary : colors.inputBackground,
+                            borderColor: isSelected ? colors.primary : colors.border,
                           },
                         ]}
                       >
                         <AppText
                           variant="bodyBold"
-                          style={{
-                            color: isSelected
-                              ? colors.onPrimary
-                              : isAvailable
-                              ? colors.text
-                              : colors.textMuted,
-                            fontSize: 13,
-                          }}
+                          style={{ color: isSelected ? colors.onPrimary : colors.text }}
                         >
                           {slot.time}
                         </AppText>
                       </Pressable>
                     );
                   })}
-                </View>
-              )}
-
-              {/* Confirm Reschedule Button */}
-              <View style={{ marginTop: spacing.lg }}>
-                <Button
-                  label={t('appointments.confirmReschedule')}
-                  disabled={!selectedSlot || rescheduleMutation.isPending}
-                  loading={rescheduleMutation.isPending}
-                  onPress={() => {
-                    if (!selectedSlot || !reschedulingAppt) return;
-                    rescheduleMutation.mutate({
-                      appointmentId: reschedulingAppt.id,
-                      startAt: selectedSlot.start_at,
-                    });
-                  }}
-                />
               </View>
-            </>
-          )}
-        </View>
-      </BottomSheet>
+            )}
+          </View>
+        </BottomSheet>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: spacing.lg,
+    flex: 1,
     gap: spacing.md,
   },
-  header: {
-    marginBottom: spacing.xs,
+  listContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
   },
-  title: {
-    fontSize: 26,
-    letterSpacing: -0.5,
-  },
-  appointmentCard: {
-    gap: spacing.sm,
-    padding: spacing.md,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  branchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  barberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    borderRadius: radius.input,
-    borderWidth: 1,
-    gap: spacing.sm,
-  },
-  servicesRow: {
-    paddingTop: 2,
+  skeletonWrap: {
+    gap: spacing.md,
   },
   actionsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    width: '100%',
   },
-  sheetContent: {
-    padding: spacing.md,
+  actionItem: {
+    flex: 1,
+  },
+  sheetBody: {
     gap: spacing.sm,
   },
-  dateChipsRow: {
+  dateScroll: {
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 4,
   },
   dateChip: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.card,
+    width: 64,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 2,
   },
   slotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
   },
-  slotItem: {
-    width: '30%',
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.input,
+  slotChip: {
+    width: '31%',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
     borderWidth: 1,
-  },
-  errorBox: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radius.input,
-    borderWidth: 1,
-    marginBottom: spacing.xs,
   },
 });
